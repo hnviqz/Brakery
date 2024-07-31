@@ -33,7 +33,7 @@
                             <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Privacy</a>
                         </li>
                     </ul>
-                    @Component.Invoke(nameof(Brakery.Models.Basket))
+                    @await Component.InvokeAsync(nameof(Brakery.Models.Basket))
                 </div>
             </div>
         </nav>
