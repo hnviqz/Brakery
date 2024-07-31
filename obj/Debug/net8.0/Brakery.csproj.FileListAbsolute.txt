@@ -126,3 +126,5 @@ C:\Users\tony\MyWorkSpace\Brakery\bin\Debug\net8.0\runtimes\win-arm64\native\e_s
 C:\Users\tony\MyWorkSpace\Brakery\bin\Debug\net8.0\runtimes\win-x64\native\e_sqlite3.dll
 C:\Users\tony\MyWorkSpace\Brakery\bin\Debug\net8.0\runtimes\win-x86\native\e_sqlite3.dll
 C:\Users\tony\MyWorkSpace\Brakery\obj\Debug\net8.0\Brakery.csproj.Up2Date
+C:\Users\tony\MyWorkSpace\Brakery\obj\Debug\net8.0\Brakery.sourcelink.json
+C:\Users\tony\MyWorkSpace\Brakery\bin\Debug\net8.0\tsconfig.json

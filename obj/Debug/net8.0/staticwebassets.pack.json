@@ -113,6 +113,14 @@
       "PackagePath": "staticwebassets\\images\\products\\sliced-bread.jpg"
     },
     {
+      "Id": "C:\\Users\\tony\\MyWorkSpace\\Brakery\\wwwroot\\js\\order.js",
+      "PackagePath": "staticwebassets\\js\\order.js"
+    },
+    {
+      "Id": "C:\\Users\\tony\\MyWorkSpace\\Brakery\\wwwroot\\js\\order.ts",
+      "PackagePath": "staticwebassets\\js\\order.ts"
+    },
+    {
       "Id": "C:\\Users\\tony\\MyWorkSpace\\Brakery\\wwwroot\\js\\site.js",
       "PackagePath": "staticwebassets\\js\\site.js"
     },

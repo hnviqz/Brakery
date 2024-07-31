@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Brakery")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+92b2b145fbeaef04afb071cb9368f22c37e1d6c2")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a76ce6ec562e5cc8a1b05a42a06403284e14715e")]
 [assembly: System.Reflection.AssemblyProductAttribute("Brakery")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Brakery")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
