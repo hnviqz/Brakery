@@ -128,3 +128,7 @@ C:\Users\tony\MyWorkSpace\Brakery\bin\Debug\net8.0\runtimes\win-x86\native\e_sql
 C:\Users\tony\MyWorkSpace\Brakery\obj\Debug\net8.0\Brakery.csproj.Up2Date
 C:\Users\tony\MyWorkSpace\Brakery\obj\Debug\net8.0\Brakery.sourcelink.json
 C:\Users\tony\MyWorkSpace\Brakery\bin\Debug\net8.0\tsconfig.json
+C:\Users\tony\MyWorkSpace\Brakery\bin\Debug\net8.0\BouncyCastle.Cryptography.dll
+C:\Users\tony\MyWorkSpace\Brakery\bin\Debug\net8.0\MailKit.dll
+C:\Users\tony\MyWorkSpace\Brakery\bin\Debug\net8.0\MimeKit.dll
+C:\Users\tony\MyWorkSpace\Brakery\bin\Debug\net8.0\System.Formats.Asn1.dll
