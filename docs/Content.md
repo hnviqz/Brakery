@@ -269,7 +269,69 @@ You assign the parameter value to the public property, which makes it available 
 <h2>@Model.Title</h2>
 ```
 
+The key reason for recommending this approach is that you benefit from strong typing and therefore IntelliSense support in IDE's that support it:
 
+![智能提示](assets/1.png)
+
+Alternatively, you can use the [BindProperty] attribute on the PageModel property with SupportsGet set to true:
+
+```csharp
+public class PostModel:PageModel
+{
+    [BindProperty(SupportsGet=true)]
+    public string Title {get;set;} 
+
+    public void OnGet()
+    {
+        //the Title property is automatically  bound
+    }
+}
+```
+
+##### Adding Constraints
+
+Constraints are an additional means of disambiguating between routes. So far, the only constraint placed on a route parameter value is its presence. You can also constraint route parameters values by data type and range. The following exmaple shows how to constrain a parameter value to an integer data type:
+
+```razor
+@page "{id:int}"
+```
+
+The `id` value is both required, and must be an integer. The next example illustrates an optional parameter, which must be a double if a value is provided:
+
+```razor
+@page "{latitude:double?}"
+```
+
+The next example shows use of the min constraint, that ensures that the value supplied is an int and that it meets a minimum value of 10000. The minimum value is supplied in parenttheses:
+
+```razor
+@page "{id:min(10000)}"
+
+```
+The final exmaple shows how to specify multiple constraints using colons:
+
+```razor
+@page "{username:alpha:minlength(5):maxlength(8)}"
+```
+This template specifies that the username values is required (i.e. is not optional), must be composed of a mixture of upper case and lowercase letters (no numbers or others symbols), has a minimum length of 5 characters and a maximum length of 8 characters.
+
+The range of constraints available are extensive, but you can also create your own custom route constraints.
+
+##### Override Routes
+
+From ASP.NET Core 2.1 onward, you can use the template to specify an alternative route for a page that has no relationship with the file name. The override route template should start with / or ~/. For example, you may have a page located deep in the folder structure somewhere e.g. Pages/Projects/Building/SOP/Schools/Intro.cshtml that you want to surface at an much easier to remember URL: schools/sop. You do this by specifying the URL pattern in the template:
+
+```razor
+@page "/schools/sop"
+```
+
+This replaces the file-path-based URL.
+
+You can use a similar approach to add segments to a route. This is achieved by omitting the / or ~/ from the start of the template. The following template will require the user to add /schools to the default route that is generated for the page:
+
+```razor
+@page "schools"
+```
 
 
 #### Application Startup
