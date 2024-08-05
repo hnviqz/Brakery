@@ -333,6 +333,18 @@ You can use a similar approach to add segments to a route. This is achieved by o
 @page "schools"
 ```
 
+##### Register Additional Routes
+
+The final plece in the Razor Pages routing jigsaw is based on the "Friendly URLs" feature found in ASP.NET Web Forms(another page-centric development model) which enables you to bypass the tight relationship between URL and the file path and name of the page that's being requested and create additional routes to those pages.
+
+Additional route mappings to pages can be configured by adding options to the `RazorPageOptions.PageConventions` collection in the `ConfigureServices` method in Startup via the `AddPageRoutes` method. In this example, a physical file named Post exists in /Pages/Archive/. You want to enable users to reach it without prepending Archive to the URL, and you want to specify some route parameters. You do that as follows:
+
+```csharp
+builder.Services.AddRazorPages()
+        .AddRazorPagesOptions(options=>{
+            options.Conventions.AddPageRoute("/Archive/Post", "Post/{year}/{month}/{day}/{title}");
+        });
+```
 
 #### Application Startup
 #### Configuration
