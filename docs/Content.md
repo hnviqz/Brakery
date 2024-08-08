@@ -598,6 +598,103 @@ Now an individual page can be reached by any number of registered languages:
 ![本地化](assets/4.png)
 
 #### Application Startup
+
+##### Configuring a Razor Pages application
+
+> :warning: This section applies to configuring Razor Pages applications from .NET 6 onwards. If you are interested in app configuration in earlier versions of .NET, please refer to the section on Startup.
+
+Configuring a Razor Pages application involves managing three aspects of the application:
+
+- Services
+- Routing
+- Request Pipeline
+
+The code within the Program.cs file is responsible for configuring, or bootstrapping an ASP.NET Core web application and starting it. In .NET 5 and earlier, this code was split across two separate files. Much of the application configuration was delegated to a separate class named Startup.cs. With the release of .NET 6, the developers behind ASP.NET have tried to reduce the amount of complexity that used to exist in basic application configuration. Rather than have code across two files, they have consolidated it into one file, taken advantage of some new C# features to further reduce the boilerplate, and then introduced what they refer to as a minimal hosting API to reduce to a minimum the code required to bootstrap and run a Razor Pages application.
+
+The result is thirteen actual lines of code in a single file. It was nearer eighty in previous versions of Razor Pages, spread across the two files.
+
+Program.cs provides the entry point to a .NET console application. By convention, it houses a static Main method that contains logic for executing the application. The Program.cs file in Razor Pages from .NET 6 onward is no different, except that there is no Main method visible. The project template utilizes some newer C# language features introduced in C# 10, one of which is top-level statements. This feature enables the omission of the class declaration and Main method in Program.cs. The compiler will generate the class and Main method and call any executable code you add to the file within the Main method.
+
+The first line of code in Program.cs creates a WebApplicationBuilder:
+
+```csharp
+var builder = WebApplicationBuilder.CreateBuilder(args);
+```
+
+Remember that this code will be executed within the compiler-generated Main method, so the args passed into the CreateBuilder method are the standard args passed into the Main method of any C# console application by whatever process invokes tha application and are optional.
+
+The WebApplicationBuilder is new in .NET 6 and forms part of the mininal hosting API together with another new type - the WebApplication. The WebApplicationBuilder has several properties, each on enabling configuration of various aspects of the application:
+
+- Environment = provides information about the web hosting environment the application is running in.
+- Services - represents the application's service container
+- Configuration - enabling logging configuration via the ILoggingBuilder
+- Host - supports configuration of application host specific services including third party DI containers
+- WebHost - enables web server configuration
+
+The application host is responsible for bootstrapping the application, starting it up and shutting it down. The term bootstrapping refers to the initial configuration of the application itself. This configuration includes:
+
+- Setting the content root path, which is the absolute path to the directory that contains the application content files
+- Loading configuration information from any values passed in to the args parameter, appsettings files and environment variables
+- Configuring logging providers
+
+All .NET applications are configured in this way, whether they are web applications, services or console applications. On top of that, a web server is configured for web applciations. The web server is configured through the WebHost property which represents and implementation of the IWebHostBuilder type. The default web server is a lightweight and extremely fast web server named Kestrel. The Kestrel server is incorporated within the application. The IWebHostBuilder also configures host filtering and integration with Internet Information Services (IIS)，the Windows web server.
+
+The IWebHostBuilder object exposes several extension methods that enable further configuration of the application. For example, you can configure an alternative to the wwwroot folder as the web root path, if you really had a good reason to. Here, the content folder is configured as a replacement for wwwroot.
+
+```csharp
+builder.WebHost.UseWebRoot("content");
+```
+
+The Services property provides the entry point to the dependency injection container, which is a centrallized  place for application services. The default template includes the following line of code, which makes the essential services that the Razor Pages infrastructure relies upon available to the application:
+
+```csharp
+builder.Services.AddRazorPages();
+```
+
+Those services include the Razor view engine, model binding, request verification, tag helpers, memory cache and ViewData.
+
+Sometimes these services will be parts of the framework that you choose to enable (like the Razor Pages example), and sometimes they represent services that you install as separate packages. Often, they will be services that you write yourself that hold the application logic, like getting and saving data.
+
+The build method returns the configured application as an instance of the WebApplication type.
+
+```csharp
+var app = builder.Build();
+```
+
+The WebApplication type represents a merger of three other types:
+
+- IApplicationBuilder - through which you configure the application's request, or middleware pipeline.
+- IEndpointRouteBuilder - enables you to configure how incoming requests are mapped to specific pages
+- IHost - provides the means to start and stop the application
+
+The WebApplication enables you to register middleware components to build and configure the application's request pipeline. Here is the default request pipeline:
+
+```csharp
+if(!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error");
+    app.UseHsts();
+}
+
+app.UseHttpRedirection();
+app.UseStaticFiles();
+app.UseRouting();
+app.UseAuthorization();
+app.MapRazorPages();
+app.Run();
+```
+
+Each middleware is added to the pipeline via an extension method on the IApplicationBuilder type which is implemented by WebApplication. An IWebHostEnvironment is accessible via the Environment property, which holds information about the current environment. This property is used to determine whether the application is currently running in Devlopment mode, and if so, the UseExceptionHandler method is called that adds middleware for catching errors and displaying details of them in the browser. Otherwise, the error page in the Pages folder is used to display a bland message that conceals any in sensitive information about the specifics of the error to the user, such as database connectyion strings containing user credentials, or information about file paths on the server. Middleware that adds an HTTP Strict Transport Security header is also registered(app.UseHsts()), but only if the application is not running in Development mode. This header tells the browser to only use HTTPS when accessing the website.
+
+The UseHttpsRedirection method adds middleware that ensures that any HTTP requests are redirected to HTTPS. Following this, the static middleware is registered. By default, an ASP.NET Core application doesn't support serving static files such as images, stylesheets, and script files. you have to opt in to this feature, and you do so by adding the static files middleware. This middleware configures the wwwroot folder to allow static files to be requested directly and serves them to the client.
+
+Routing middleware is responsible for selecting which endpoint should be executed, based on information included in the request. Then authorization middleware is registered, which is responsible for determining if the current user is authorized to access the resource that is being requested.
+
+Finally, the MapRazorPages method adds middleware to the pipeline that initially configures Razor Pages as endpoints. This middleware is also responsible thereafter for executing the request.
+
+
+
+
 #### Configuration
 #### Middleware
 #### Dependency Injection
