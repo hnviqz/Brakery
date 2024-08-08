@@ -692,10 +692,251 @@ Routing middleware is responsible for selecting which endpoint should be execute
 
 Finally, the MapRazorPages method adds middleware to the pipeline that initially configures Razor Pages as endpoints. This middleware is also responsible thereafter for executing the request.
 
-
-
-
 #### Configuration
+
+##### Configuration in Razor Pages
+
+ASP.NET Core includes an API for managing configuration settings needed by the application which includes a number of providers for retrieving data in a variety of different formats.
+
+Configuration is set up as part of the WebHost.CreateDefaultBuilder method called in Program.cs, the entry point to the application. Various key/value stores are added to configuration by default:
+
+- appsettings.json (and another version named after the current environment e.g. appsettings.Development.json)
+- User Secrets (if the environment is Development)
+- Environment variables
+- Command line arguments
+
+You can add other stores such as XML files, .ini files and so on if required. Configuration is added to the Dependency Injection system and is accessible throughout the application via an IConfiguration object.
+
+###### AppSettings.json
+
+The vast majority of applications are likely to only ever use an appsettings.json file for their configuration needs. Each configuration setting is stored in its own section. The default appsettings.json file includes a section that configures logging for the application:
+
+```json
+{
+    "Logging":{
+        "IncludeScopes": false,
+        "Loglevel": {
+            "Default": "Warning"
+        }
+    }
+}
+```
+
+The next exmaple configures logging and a connection string to a SQLite database:
+
+```json
+{
+    "ConnectionStrings":{
+        "DefaultConnection":"Data Source=app.db"
+    },
+    "Logging":{
+        "IncludeScopes":false,
+        "Loglevel":{
+            "Default":"Warning"
+        }
+    }
+}
+```
+
+###### Working with Custom Settings
+
+Custom settings provide the easiest way to extend the application configuration. The use of JSON as a storage format enables you to store complex information easily.
+
+You can provide any name you like to custom sections of the appsettings.json file. In the example below, some values are stored in a section which has been creatively named AppSettings:
+
+```json
+"AppSettings":{
+    "First":"value 1",
+    "Second":"value 2",
+    "Car":{
+        "NumberOfDoors":5,
+        "RegistrationDate":"2017-01-01T00:00:00.000Z",
+        "Color":"Black"
+    }
+}
+```
+
+###### Accessing Configuration Settings Programmatically
+
+The IConfiguration object enables you to access configuration settings in a variety of ways once it has been injected into your PageModel's constructor. You need to add a using directive for Microsoft.Extensions.Configuration to the PageModel class file.The first example illustrates how to reference a value using a string-based approach. The section is specified and subsequent properties are referenced by separating them with colons(:)
+
+```csharp
+private readonly IConfiguration _configuration;
+
+public IndexModel(IConfiguration configuration)
+{
+    _configuration = configuration;
+}
+
+public void OnGet()
+{
+    ViewData["config"] = _configuration["AppSettings:First"];
+}
+```
+
+This approach, as with all APIs that rely on strings is error-prone. You are a typing mistake away from a NullReferenceException at runtime.
+
+###### Connection Strings
+
+The Configuration class includes a convenience method for retrieving connection strings: GetConnectionString. You pass it the name of the connection that you want to retrieve:
+
+```csharp
+var connString = Configuration.GetConnectionStrings("DefaultConnection");
+```
+
+###### Strongly Typed AppSettings
+
+A more robust approach can be achieved by using the Configuration system's built-in capability to bind settings to a C# object. The following code is a C# representation of the object represented in the JSON above:
+
+```csharp
+public class AppSettings
+{
+    public string First {get;set;}
+    public string Second { get;set;}
+    public Car Car {get;set;}
+}
+
+public class Car
+{
+    public int NumberOfDoors {get;set;}
+    public DateTime  RegistrationDate { get;set;}
+    public string Color {get;set;}
+}
+```
+
+And this is how you can use the IConfiguration.GetSection method to bind the content of appsettings.json to and instance of AppSettings:
+
+```csharp
+private readonly IConfiguration _configuration;
+public IndexModel(IConfiguration configuration)
+{
+    _configuration = configuration;
+}
+
+public void OnGet()
+{
+    var Settings = _configuration.GetSection("AppSettings").Get<AppSettings>();
+    ViewData["RegistrationDate"] = settings.Car.RegistrationDate;
+}
+```
+
+###### Using The Options Pattern
+
+The Options pattern works in a similar way to the previous approach in that it enables working with strongly typed configuration values and relies on the Configuration system's built-in capability to bind settings to C# objects. The Options pattern is intended to be used to group related configuration values together in individual classes.
+
+The following example shows a simple appsettings.json file：
+
+```csharp
+{
+    "Logging":{
+        "LogLevel":{
+            "Default":"Warning"
+        }
+    },
+    "AllowedHosts":"*",
+    "Title":"My Great Site",
+    "Author":{
+        "FirstName":"Mike",
+        "LastName":"Brind"
+    },
+    "EmailFrom":"comments@mygreatesite.com",
+    "EmaildisplayName":"Site Comments",
+    "EmailSmtp":"localhost"
+}
+```
+
+One set of related configuration settings are the Title and the Author. These are represented in the MetaOptions class (along with the definition of the Author class):
+
+```csharp
+public class MetaOptions
+{
+    public string Title{get;set;}
+    public Author Author{get;set;}
+}
+
+public class Author
+{
+    public string FirstName{get;set;}
+    public string LastName{get;set;}
+}
+```
+
+The second group of related configuration values concern email settings for the site and are represented by the EmailOptions class:
+
+```csharp
+public class EmailOptions
+{
+    public string EmailFrom {get;set;}
+    public string EmailDisplayName {get;set;}
+    public string EmailSmtp{get;set;}
+}
+```
+The following lines of code are all that is needed to bind values from appsettings.json to both of the configuration classes and to make them available as a service:
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.Configure<MetaOptions>(Configuration);
+    services.Configure<EmailOptions>(Configuration);
+}
+```
+
+Now the configuration can be injected into PageModel constructors using the IOptions<TOptions> interface.You will need to add a using directive for Microsoft.Extensions.Options at the top of the PageModel class file:
+
+```csharp
+using Microsoft.Extensions.Options;
+
+public class IndexModel:PageModel
+{
+    private readonly MetaOptions _options;
+
+    public IndexModel(IOptions<MetaOptions> options)
+    {
+        _options = options.Value;
+    }
+
+    public string Title {get;set;}
+    public Author Author {get;set;}
+
+    public void OnGet()
+    {
+        Title = _options.Title;
+        Author = _options.Author;
+    }
+}
+```
+
+Note that the value property of IOptions<TOptions> is accessed in the constructor to get at the actual configuration values.
+
+Alternatively, if for example you wanted to use the configuration values in a layout file, you can use the @inject directive:
+
+```csharp
+@inject Microsoft.Extensions.Options.IOptions<MetaOptions> metaOptions
+@{
+    var options = metaOptions.Value;
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+      <meta name="author" content="@options.Author.FirstName @options.Author.LastName"/>
+    <title>@options.Title</title>
+```
+
+The resulting HTML renders as follows:
+
+```html
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="author" content="Mike Brind"/>
+        <title>My Great Site</title>
+```
+
 #### Middleware
 #### Dependency Injection
 #### Working With Forms
