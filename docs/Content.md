@@ -1190,6 +1190,101 @@ The WithReExecute option wins based on the fact that the visitor can check the b
 
 The WithReExecute option really wins if Search Engine Optimisation is immportant to you. The best way to let a search engine know that the incorrent URL it is trying to index does not exist is to respond with a 404 Not Found status code. If you provide a 302 Found followed by a index, potentially serving it up within a search result.
 
+##### Configuring your Razor Pages site to run under HTTPS
+
+Running a site under HTTPS used to be something that only big online merchants worried about. Google are leading a push to have all web sites operate in a secure manner and now include HTTPS encryption as a ranking signal.
+
+Once you have configured your web server to serve your site over HTTPS successfully, you need to ensure that your visitors can only access the site securely. ASP.NET Core provides a couple of ways to achieve this.
+
+##### The RequireHttpsAttribute
+
+The RequireHttps attribute is an authorization filter whose role is to confirm that requests are received over HTTPS. If the request was not make over HTTPS, the client will be redirected to the HTTPS version of the request URI if the GET method was used. Non-HTTPS requests made using any other verb(e.g. POST) will receive a 403 Forbidden result.
+
+The attribute can be applied to a PageModel class:
+
+```csharp
+[RequestHttps]
+public class IndexＭodel:PageModel
+{
+    //.....
+}
+```
+
+However, this approach is not recommended unless all traffic is redirected to single Razor Page(as happens to be the case with this site). It is too easy to forget to apply the attribute to new pages added to the site in the future. A slightly less risky approach would be to apply the attribute to a class that implements PageModel, and then have all other PageModel classes inherit from that:
+
+```csharp
+[RequireHttps]
+public class BasePageModel: PageMOdel
+{
+    //...
+}
+
+public class IndexModel : PageModel
+{
+    //...
+}
+```
+
+You can then write a unit test to ensure that all the PageModel classes in the application inherit from  BasePageModel. But it is still possible to add Razor Pages that don't have an associated PageModel.The recommended approach to using the RequireHttps attribute is to apply it as global filter in the ConfigureServices method:
+
+```csharp
+services.Configure<MvcOptions>(options=>{
+    options.Filters.Add(new RequireHttpsAttribute());
+});
+```
+
+This configuration results in the browser (or other user agent) being issued with a 302 (Found) status code, which indicates that the item has been moved temporarily to a different URL to the one originally used in the request. If the move from the HTTP version to the HTTPS version is permanent (which is most often the case), you should set the Permanent property of the RequireHttpsAttribute to true:
+
+```csharp
+services.Configure<MvcOptions>(options=>{
+    options.Filters.Add(new RequireHttpsAttribute(Permanent=true));
+});
+```
+
+Now the application will return a 301 Permanently Moved result, which should ensure that search engines update their indexes to point to the HTTPS version of the resource.
+
+##### URL Rewriting
+
+An alternative to the RequireHttpsAttribute is to use URL Rewriting. This is made available to the application as part the standard configuration. You activate Rewriting within the Configure method:
+
+```csharp
+public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+{
+    if(env.IsDevelopment())
+    {
+        app.UseDeveloperExceptionPage();
+    }
+    else
+    {
+        app.UseExceptionHandler("/Error");
+        var options = new RewriteOptions().AddRedirectToHttps();
+        app.UseRewriter(options);
+    }
+
+    app.UseStaticFiles();
+    app.UseMvc();
+}
+```
+
+This example shows Rewriting being added to the pipeline conditionally - only when the environment is not Development. This allows you to develop the application using standard HTTP, and makes use of the Rewrite options more flexble than the RequireHttps filter.
+
+Just as with the RequireHttps filter, the Rewrite approach also provides an option to issue 301 Moved Permanently status codes instead of 302:
+
+```csharp
+var options = new RewriteOptions().AddRedirectToHttpsPermanent();
+app.UseRewriter(options);
+```
+
+You can chain this with other extension methods. The AddRedirectToWwwPermanent() method is another that is provided by the framework:
+
+```csharp
+var options = new RewriteOptions().AddRedirectToHttpsPermanent().AddRedirectToWwwPermanent();
+app.UseRewriter(options);
+```
+
+Now the application will redirect non-www traffic to wwww, and ensure that it is served under HTTPS.
+
+
 
 #### Middleware
 #### Dependency Injection
