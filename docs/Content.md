@@ -1103,6 +1103,13 @@ Now when you encounter an exception, details will be written to the specified lo
 
 [NLog](assets/7.png)
 
+##### Configuring a custom error page
+
+When a visitor tries to request a page on your site that doesn't exist, or an unhandled exception occurs while executing server-side code the web server returns an HTTP status code to the browser indicating that an error occurred. As a site developer, you have two choices when this happens: you can either let the browser show its default notification page;
+
+
+
+
 #### Middleware
 #### Dependency Injection
 #### Working With Forms
