@@ -1387,9 +1387,98 @@ public class ElapsedTimeMiddleware
 
 This middleware measures the time taken to process a request and then logs that information.
 
-The class takes
+The class takes a RequestDelegate as a parameter to its constructor. The RequestDelegate represents the next middleware in the pipeline.Convention-based middleware is expected to implement a method named Invoke or InvokeAsync that takes an HttpContext as the first parameter and returns a Task.This method should include the code for processing the request, optionally short-circuiting the pipeline and returning a response, or passing control on to the next middleware. In this example, the Invoke method takes an HttpContext as a parameter and an ILogger.
+
+Within the middleware, a Stopwatch instance is started. Then the request delegate is invoked, resulting in the rest of the pipeline being executed. The code after this line is executed once all subsequent middleware has executed. If the current request returns HTML, the elapsed time is logged:
+
+![middlewareresult](assets/16.png)
 
 
+The logger is injected via the Invoke method instead of the constructor because convention-based middleware is instantiated once at startup and acts as a singleton. Consequently, any dependencies are also created as singletons. Dependencies injected via the Invoke method are only instantiated whenever the method is called and assume the lifetime that they are registered with.
+
+The extension method used to register the middleware is as follows:
+
+```csharp
+public static class BuilderExtensions
+{
+    public static IApplicationBuilder UseElapsedTimeMiddleware(this IApplicationBuilder app)
+    {
+        return app.UseMiddleware<ElapsedTimeMiddleware>();
+    }
+}
+```
+
+This method is called in the Configure method in Startup:
+
+
+```csharp
+public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+{
+    if(env.IsDevelopment())
+    {
+        app.UseDeveloperExceptionPage();
+    }
+    else
+    {
+        app.UseExceptionHandler("/Error");
+        app.UseHsts();
+    }
+
+    app.UseHttpsRedirection();
+    app.UseStaticFiles();
+    app.UseElapsedTimeMiddleware();
+    app.UseRouting();
+    app.UseAuthorization();
+    app.UseEndpoints(endpoints=>{
+        endpoints.MapRazorPages();
+    });
+}
+```
+
+The ElapsedTime middleware is registered after the StaticFiles middleware, ensuring that requests for static files do not start the stop watch.
+
+###### IMiddleware
+
+The IMiddleware interface was introduced in ASP.NET Core 2.0. IMiddleware is instantiated by a factory for each request that requires it, which means it is instantiated with a scoped lifetime. This means that it is safe to inject scoped and transient services into its constructor. The other benefit of IMiddleware classes is that they do not rely on conventions to work. They rely on implementing the interface, making them strongly typed. IMiddleware is registered in exactly the same way as a convention-based component. The main differences are the class design, and the fact that the class must also be registered with the service container so that the factory can locate it.
+
+Here  is the same ElapsedTime middleware based on IMiddleware:
+
+```csharp
+public class ElapsedTimeMiddleware : IMiddleware
+{
+    private readonly ILogger _logger;
+
+    public ElapsedTimeMiddleware(ILogger<ElapsedTimeMiddleware> logger)=>_logger = logger;
+
+    public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+    {
+        var sw = new Stopwatch();
+        sw.Start();
+        await _next(context);
+        var isHtml = context.Response.ContentType?.ToLower().Contains("text/html");
+        if(context.Response.StatusCode==200&&isHtml.GetValueOrDefault())
+        {
+            _logger.LogInformation($"{context.Request.Path} executed in {sw.ElapsedMilliseconds}ms");
+        }
+    }
+}
+```
+
+The IMiddleware interface requires the implementation of one method:
+
+```csharp
+Task InvokAsync(HttpContext context, RequestDelegate next)
+```
+
+It is a very similar pattern to the convention-based middleware, except that dependencies are injected via the constructor. The extension method for registering this middleware is identical to the previous version, but you must also register this middleware with the DI system:
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddRazorPages();
+    services.AddScoped<ElapsedTimeMiddleware>();
+}
+```
 
 
 #### Dependency Injection
