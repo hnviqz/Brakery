@@ -1387,7 +1387,7 @@ public class ElapsedTimeMiddleware
 
 This middleware measures the time taken to process a request and then logs that information.
 
-
+The class takes
 
 
 
