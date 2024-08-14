@@ -1287,6 +1287,111 @@ Now the application will redirect non-www traffic to wwww, and ensure that it is
 
 
 #### Middleware
+
+##### Middleware in Razor Pages 
+
+###### The Request Pipeline
+
+When requests are make to a web application, they need to be processed in some way. A number of considerations need to be taken into account. Where should the request be directed or routed to? Should details of the request be logged? Should the application simply return the content of a file? Should it compress the response? What should happen if an exception is encountered while the request is being processed? Is the person making the request actually allowed to access the resource they have requested? How should cookies or other request-related data be handled?
+
+Each of these processing actions are performed by separate components.The term used to describe these components is Middleware.Together, they form the request pipeline.
+
+###### Middleware in ASP.NET Core
+
+In previous versions of ASP.NET, the components that affect the request pipeline (HttpModules and HttpHandlers) were all bundled into one library, System.Web.dll, along with everything else you might or might not need to make your web application run.
+
+In ASP.NET Core, you can choose which middleware to register in Program.cs or the Configure method of the Startup class for older versions of ASP.NET Core.The standard template includes the following code:
+
+```csharp
+var app = builder.Build();
+if(!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error");
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseRouting();
+app.UseAuthorization();
+app.MapRazorPages();
+app.Run();
+```
+
+Various components are registered including error handling middleware, middleware for processing requests for static files (images, style sheets, script file, PDFs etc), authentication management middleware (if you enable authentication when creating your project), and the MVC framework. Each component is registered using an extension method on the IApplicationBuilder type.
+
+The order in which the components are registered determines the order in which they are executed. Error handling middleware is registered first so that it is available to all code further along the pipeline where exceptions may be raised.
+
+Middleware can either terminate the pipeline execution and return a response or it can pass control on to the next component. The Static File middleware terminates execution of the pipeline and sends the content of the requested static file in the response. Routing, Authentication and EndPoint Middleware are not invoked when static files are requested. Other components pass execution on to the next registered component.
+
+###### Creating Middleware
+
+Middleware is implemented as a RequestDelegate, a delegate that takes an HttpContext as a parameter and returns a Task:
+
+```csharp
+public delegate Task RequestDelegate(HttpContext context);
+```
+
+Here are two examples of middleware. The first is defined as an inline lambda and simply returns a response. It is passed as a parameter to the IApplicationBuilder.Run() method in Program.cs (the Startup's Configure method in earlier versions):
+
+```csharp
+app.Run(async (context)=>{
+    await context.Response.WriteAsync("All done");
+});
+```
+
+This example terminates the pipeline. No other middleware components are executed. The Run method is used specifically for registering middleware that behaves like this.
+
+The next example terminates the response only when a particular query string value is present. Otherwise is passes control on to the next middleware in the pipeline, represented by the next parameter
+
+```csharp
+app.Use(async (context, next)=>
+{
+    if(context.Request.Query.ContainsKey("stop"))
+    {
+        await context.Response.WriteAsync("All done");
+    }
+    await next();
+});
+```
+
+Middleware that passes control on to the next middleware is registered with the IApplicationBuilder Use method.
+
+Middleware Classes
+
+The recommended pattern for creating middleware is to create a separate class for it, and then to create an extension method on the IApplicationBuilder type to register it. There are two ways to author middleware classes. You can use the convention-based approach or you can implement IMiddleware.
+
+######  Convention-based Middleware
+
+The following code shows a middleware class built on conventions. The is the appraoch you are most likely to see because it was the only way to write middleware classes before ASP.NET Core 2.0, and most of the framework middleware is written like this.
+
+ElapsedTimeMiddleware.cs
+
+```csharp
+public class ElapsedTimeMiddleware
+{
+    public ElapsedTimeMiddleware(RequestDelegate next)=>_next = next;
+    public async Task Invoke(HttpContext context, ILogger<ElapsedTimeMiddleware> logger)
+    {
+        var sw = new Stopwatch();
+        sw.Start();
+        await _next(context);
+        var isHtml = context.Response.ContentType?.ToLower().Contains("text/html");
+        if(context.Response.StatusCode == 200 && isHtml.GetValueOrDefault())
+        {
+            logger.LogInforamtion($"{context.Request.Path} executed in {sw.ElapsedMilliseconds}ms");
+        }
+    }
+}
+```
+
+This middleware measures the time taken to process a request and then logs that information.
+
+
+
+
+
+
 #### Dependency Injection
 #### Working With Forms
 #### Validation
