@@ -1482,6 +1482,319 @@ public void ConfigureServices(IServiceCollection services)
 
 
 #### Dependency Injection
+
+##### Dependency Injection in Razor Pages
+
+Dependency Injection (ID) is a technique that promotes loose coupling of software through separation of concerns. In the context of a Razor Pages application, DI encourages you to develop discrete components for specific tasks, which are then injected into classes that need to use their functionality. This results in an application that is easier to maintain and test.
+
+##### The Problem
+
+Many people think that the real problem with DI is the terminology that surrounds it. This section seeks to address that by providing an illustration of the problem that DI is designed to solve.
+
+The following sample of code features the page model class for a contact form:
+
+```csharp
+public class ContactModel : PageModel
+{
+    [BindProperty] public string From {get;set;}
+    [BindProperty] public string Email{get;set;}
+    [BindProperty] public string Subject {get;set;}
+    [BindProperty] public string Comments{get;set;}
+
+    public async Task<IActionResult> OnPost()
+    {
+        using(var smtp = new SmtpClient())
+        {
+            var credential = new NetworkCredential
+            {
+                UserName = "user@outlook.com", //replace with valid value
+                Password = "password" //replace with valid value
+            };
+
+            smtp.Credentials = Credential;
+            smtp.Host = "smtp-mail.outlook.com";
+            smtp.Port = 587;
+            smtp.EnableSsl = true;
+
+            var message = new MailMessage
+            {
+                Body = $"From: {From} at {Email}<p>{Comments}</p>",
+                Subject = Subject,
+                IsBodyHtml = true
+            };
+
+            message.To.Add("contact@domain.com");
+            await  smtp.SendMailAsync(message);
+            return RedirectToPage("Thanks");
+        }
+    }
+}
+```
+
+And, for completeness, here is the contact form:
+
+```html
+<form method="post">
+    <label asp-for="From"></label>
+    <input type="text" asp-for="From" /><br>
+    <label asp-for="Email"></label>
+    <input type="text" asp-for="Email" /><br>
+    <label asp-for="Subject"></label>
+    <input type="text" asp-for="Subject" />
+    <br>
+    <label asp-for="Comments"></label>
+    <textarea asp-for="Comments"></textarea>
+    <br>
+    <input type="submit" />
+
+</form>
+```
+
+When the form is posted, the email is constructed in the OnPost handler method and sent, and the user is redirected to a page named "Thanks".
+
+This is an extremely simple example for the purposes of explanation. The code is brief and looks similar to countless other examples of sending email using ASP.NET. But there are issues with the code - if you want to change the way that the comments are handled, you have to change the ContactModel class, which increases the changes of introducing bugs into the ContactModel. Also, you cannot possibly unit test the code in the ContactMode's OnPost method without causing an email to be sent which means that the unit test is not a unit test. It's an integration test. Finally, if you have other pages on the site that use the same code (e.g. a support form), you have multiple places to update if you want to change from Outlook to Gmail, for example.
+
+Developers are advised to implement the SOLID principals of software design to ensure that their applications are robust and easier to maintain and extend. Another important guiding principal for developers is Don't Repeat Yourself (DRY), which states that you should aim to reduce code repetition wherever possible.
+
+The ContactModel contravenes the S in SOLID - the Single Responsibility Principal (SRP) which states that a class should only have one responsibility. Page model classes have a responsibility - to determine the response based on the request. Any other tasks that need to be performed as part of processing the request should be handled by different classes, designed solely for those responsibilities.
+
+The ContactModel class also contravenes the D in SOLID - the Dependency Inversion Principal (DIP) which states that high level modules (the ContactModel class) should not rely (depend) on low level modules (in this case, System.Net.Mail).They should rely on abstractions (typically interfaces, but also abstract classes) instead.Dependency Injection is the most common way to achieve DIP.
+
+##### Single Responsibility Principal and DRY
+
+The first part of the solution to reducing the issues outlined above is to implement SRP, and at the same time, adhere to DRY. This is achieved by creating a separate class for handling the comments.
+
+```csharp
+using System.Net;
+using System.Net.Mail;
+using System.Threading.Tasks;
+namespace RazorPages.Services
+{
+    public class CommentService
+    {
+        public async Task Send(string from, string subject, string email, string comments)
+        {
+            using (var smtp = new SmtpClient())
+            {
+                var credential = new NetworkCredential
+                {
+                    UserName = "user@outlook.com",  // replace with valid value
+                    Password = "password"  // replace with valid value
+                };
+                smtp.Credentials = credential;
+                smtp.Host = "smtp-mail.outlook.com";
+                smtp.Port = 587;
+                smtp.EnableSsl = true;
+                var message = new MailMessage
+                {
+                    Body = $"From: {from} at {email}<p>{comments}</p>",
+                    Subject = subject,
+                    IsBodyHtml = true
+                };
+                message.To.Add("contact@domain.com");
+                await smtp.SendMailAsync(message);
+            }
+        }
+    }
+}
+```
+
+Now the OnPost method can be refactored:
+
+```csharp
+public class ContactModel:PageModel
+{
+    [BindProperty]
+    public string From {get;set;}
+    [BindProperty]
+    public string Email {get;set;}
+    [BindProperty]
+    public string Subject {get;set;}
+    [BindProperty]
+    public string Comments { get;set;}
+
+    public async Task<IActionResult> OnPost()
+    {
+        var service = new CommentService();
+        await service.Send(From,Subject,Email,Comments);
+        return RedirectToPage("Thanks");
+    }
+}
+```
+The code for sending emails is located in one place - the CommentService class. Its Send method contains the code that previously occupied the majority of the ContactModel's OnPost method. The service class can be called anywhere in the application where its functionality is required. This satisfies DRY. The ContactModel is no longer responsible for creating and sending the email. It uses the CommentService to do that. Both classes satisfy SRP.
+
+##### Dependency Inversion Principal
+
+The ContactModel is still dependent on a specific comment handling component - the CommentService class. It is "tightly coupled" to this dependency. It instantiates and instance of CommentService in the OnPost method. There is currently no getting away from it. If you want to change the way that comments are handled, you still have to make changes to the body of the ContactModel to change the component that provides the service, and/or the method that is called.
+
+DIP states that the CommentService should be represented as an abstraction - an interface or abstract class. The most common approach is to use interfaces to provide the abstraction. Here is an interface that represents sending a message:
+
+```csharp
+using System.Threading.Tasks;
+
+namespace RazorPages.Services
+{
+    public interface ICommentService
+    {
+        Task Send(string from, string subject, string email, string comments);
+    }
+}
+```
+
+Next, the existing CommentService has to implement the interface:
+
+```csharp
+namespace RazorPages.Services
+{
+    public class CommentService:ICommentService
+    {
+        public async Task Send(string from, string subject, string email, string comments)
+        {
+            //...do something
+        }
+    }
+}
+```
+
+Now the ContactModel can depend on an interface:
+
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using Microsfot.AspNetCore.Mvc.RazorPages;
+using RazorPages.Services;
+using System.Threading.Tasks;
+
+namespace RazorPages.Pages
+{
+    public class ContactModel : PageModel
+    {
+        private readonly ICommentService _commentService;
+
+        public ContactModel(ICommentService commentService)
+        {
+            _commentService = commentService;
+        }
+
+        [BindProperty]
+        public string From {get;set;}
+        [BindProperty]
+        public string Email {get;set;}
+        [BindProperty]
+        public string Subject {get;set;}
+        [BindProperty]
+        public string Comments {get;set;}
+
+        public async Task<IActionResult> OnPost()
+        {
+            await _commentService.Send(From, Subject, Email, Comments);
+            return RedirectToPage("Thanks");
+        }
+    }
+}
+```
+
+The change sees a private field called _commentService added to the ContactModel. The ContactModel also has a constructor added that takes a parameter of type ICommentService. This is assigned to the private field in the constructor, and then it is used in the OnPost method. 
+
+Now you can provide any component to the ContactModel, so long as it implements the ICommentService interface i.e. it has a send method that takes four strings. It doesn't matter whether the Send method uses SMTP to send an email, stores the comments in a text file, Tweets them or posts them to Facebook. The ContactModel doesn't need to know, nor will it need to be modified if the Send action changes. Concerns are separated into different classes which are now loosely coupled. They are not dependent on each other.
+
+At the moment,the code above will compile,but it will generate an InvalidOperationException at runtime whenever the ASP.NET framework attempts to create an instance of ContractModel. The reason for this is that currently, the framework is unable to resolve an implementation of ICommentService to pass to the constructor of the ContactModel when an instance is instantiated.
+
+So how does the CommentService class used by the ContactModel class get resolved?
+
+##### Inversion of Control Containers
+
+At their most basic, Inversion of Control (IoC) Containers, also know as Dependency Injection Containers, are Components that
+
+- maintain a registry of interfaces and concrete implementations
+- resolve and provide the registered concrete implementation when they are requested
+- manage the lifetime of the component.
+
+ASP.NET Core's built in DI system supports constructor injection, so it resolves implementations of dependencies passed in as parameters to the constructor method of objects. Before it can do that, the implementations must be registered with the container. Typically, implementations (or "services") are registered in Program.cs from .NET 6 onwards, or the ConfigureServices method in the Startup class in earlier versions of .NET. The following code shows the CommentService being registered:
+
+```csharp
+builder.Services.AddRazorPages();
+builder.Services.AddTransient<ICommentService,CommentService>();
+```
+
+##### Service Lifetime
+
+In this example, the CommnetService is registered with the AddTransient method which, which is one of three options that determine the lifetime of the service:
+
+|method|description|
+|AddTransient|This method ensures that a new instance of the service is created each time it is needed, where "needed" means injected into the constructor of a dependent class (e.g. a PageModel).|
+|AddScoped|Scoped services are ones that remain valid for the duration of a web request.You would favour scoped services where the cost of instantiation is high and the service is likely to be reused across operations during the same request, or if you want to maintain state across operations during the same request. A typical example of this is an Entity Framework context where you will want to reuse the connection, and may want to access tracked object across operations.You would also use this option for services that depend on other services that have a scoped lifetime|
+|AddSingleton|The service will be instantiated as a Singleton, and will be reused across all requests for the lifetime of the application.|
+
+##### Registering a Service with Constructor Parameters
+
+Sometimes the service implementation that you register requires one or more constructor parameters to be passed to it. For example, you might decide to use a data access technology that requires an explicit connection string to be passed to it(e.g. Dapper). Rather that refer to the same connection string throughout the application, you  create a Factory class to create the connection that the application can use, and pass the connection string as a parameter in one place - in the Startup class.
+
+Here is an example Factory class that returns a connection object, preceded by an interface that it implements:
+
+```csharp
+public interface IConnectionFactory
+{
+    IDbConecttion CreateConnection();
+}
+
+public class SqlConnectionFactory: IConnectionFactory
+{
+    private readonly string _connectionString;
+
+    public SqlConnectionFactory(string connectionString)
+    {
+        _connectionString = connectionString;
+    }
+
+    public IDbConnection CreateConnection()
+    {
+        return new SqlConnection(_connectionString);
+    }
+}
+```
+
+The constructor of the Factory class requires a parameter representing the connection string to be passed to the connection. The following example illustrates how to use an overload of the AddSingleton method to register the IConnectionFactory as a service, resolving it to the SqlConnectionFactory, while satisfying the requirement to provide a connection string:
+
+```csharp
+var connString = Configuration.GetConnectionString("DefaultConnection");
+if(connString == null)
+{
+    throw new ArgumentNullException("Connection string cannot be null");
+}
+
+builder.Services.AddSingleton<IConnectionFactory>(s=> new SqlConnectionFactory(connString));
+```
+
+Similar overloads exist for the AddTransient and AddScoped methods.
+
+##### IServiceCollection Extension Methods
+
+The AddMvc method is an extension method on IServiceCollection that wraps the registration of all the dependencies related to the MVC framework, such as model binding, action and page invokers and so on in one tidy method call. Similar wrapper methods exist for registering other commonly used services within a Razor Pages application such as AddDbContext to register an Entity Framework DbContext.
+
+You can create your own extension methods easily enough. Here's an example for the CommentService:
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using RazorPages.Services;
+
+namespace RazorPages
+{
+    public static class ServiceExtensions
+    {
+        public static IServiceCollection RegisterCommentService(this IServiceCollection services)
+        {
+            return services.AddTransient<ICommentService,CommentService>();
+        }
+    }
+}
+```
+
+This can be used in the ConfigureServices method as follow:
+
+```csharp
+builder.Services.AddRazorPages();
+builder.Services.RegisterCommentService();
+```
 #### Working With Forms
 #### Validation
 #### Model Binding
