@@ -1795,7 +1795,190 @@ This can be used in the ConfigureServices method as follow:
 builder.Services.AddRazorPages();
 builder.Services.RegisterCommentService();
 ```
+
+This approach helps to keep application configuration a lot less cluttered,especially as you can chain calls to the various AddTransient, AddScoped etc.method, which means your extension method could look like this:
+
+```csharp
+public static IServiceCollection RegisterMyServices(this IServiceCollection service)
+{
+    return services.AddTransient<ICommentService,CommentService>()
+                    .AddTransient<ISecondService,SecondService>()
+                    .AddTransient<IThirdService,ThirdService>()
+                    .AddTransient<IFourthService,FourthService>();
+}
+```
+
+And then only one line is required in the ConfigureServices method to register numberious service:
+
+```csharp
+builder.Services.AddRazorPages();
+builder.Services.RegisterMyServices();
+```
+
+##### Injecting Into Content Pages Or Views
+
+The examples so far all feature the use of constructor injection to make services available to a class that needs them, such as the PageModel class.However, there might be occasions when you want to use a service within a Razor page itself. For example, you might have chosen to use an @functions block to house your application logic. Or you might simply want to avail yourself of a utility within the UI, such as the IAntigorgery interface for generating a request verification token for an AJAX post. In these cases, services can be injected in to the page via the @inject directive:
+
+```csharp
+@page
+@model LearnRazorPages.Pages.Index
+@inject IAntiforgery antiforgery
+@{
+    var token = antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
+}
+```
+
+In the example above, the @inject directive is followed by the type that you want to make available to the page, and then the name for an instance of that type that you can use further down the page.
+
+In this particular case,the IAntiforgery interface belongs to a namespace (Microsoft.AspNetCore.Antiforgery) that is not made available to Razor pages by default, so you either need to reference it by its fully qualified name:
+
+```csharp
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery antiforgery
+```
+
+Or you can add a using directive the the _ViewImports file that affects the Razor page in question:
+
+```csharp
+@using Microsoft.AspNetCore.Antiforgery
+```
+
+
 #### Working With Forms
+
+##### Using Forms in Razor Pages
+
+Forms are used for transferring data from the browser to the web server for further processing,such as saving it to a database, constructing an email, or simply subjecting the data to some kind of algorithm and then displaying the result.
+
+##### The HTML form element
+
+The HTML <form> element is used to create a form on a web page. The form element has a number of attributes, the most commonly used of which are method and action. The method attribute determines the HTTP verb to use when the form is submitted. By default, the GET verb is used and the form values are appended to the receiving page's URL as query string values, If the action attribute is omitted, the form will be submitted to the current URL i.e. the page that the form is in.
+
+Usually, you submit forms using the post verb which remvoes the form values from the URL and allows more data to be sent in the request as query strings are limited by most browsers. Therefore you should provide a method attribute with the value post:
+
+```html
+<form method="post">
+</form>
+```
+
+##### Capturing user input
+
+The primary role of the form is to capture input provided by the user for transfer to the web server. A collection of form controls, represented by the input, select and textarea elements are designed to accept user input for submission.
+
+The input element's display and behaviour is controlled by its type parameter. If ommited, the type defaults to text and the control renders as a single line textbox:
+
+<input />
+
+There are a range of other input types whose behaviour and appearance differs based on the type value, and the browser:
+
+|Type|Example|Description|
+|---|---|---|
+|checkbox|<input type="checkbox" />|Renders as a check box|
+|color|<input type="color" />|Renders a color picker|
+|date|<input type="date" />|Renders a date control|
+|datetime|<input type="datetime" />|Obsolete, replaced by datetime-local. Was never implemented by browser vendors.|
+|datetime-local|<input type="datetime-local" />|Creates a control that accepts the date and time and displays it in the browser's local format|
+|email|<input type="email" />|A text box that accepts valid email addresses only.Validation is performed by the browser|
+|file|<input type="file" />|Renders a file selector|
+|hidden|<input type="hidden" />|Nothing is rendered.Used to pass form values that do not need to be displayed|
+|image|<input type="image" />|Renders a submit button using the specified image|
+|month^1^|<input type="month" />|Renders a control designed to accept a month and year|
+|number|<input type="number" />|Some browsers render a spinner control and refuse to accept non-numeric values|
+|password|<input type="password" />|Values entered by the user are obscured for security purposes|
+|radio|<input type=radio />|Renders as a radio button|
+|range|<input type="range" />|Browsers render a slider control|
+|search|<input type="search" />|A text box designed to accept search terms.Some browsers may provide addtional features such as a content reset icon|
+|submit|<input type="submit" />|Renders a standard submit button with the text "Submit"|
+|tel|<input type="tel" />|A textbox designed to accept telephone numbers. Browsers do not validate for any specific format|
+|time^1^|<input type="time" />|A control that accepts a time value in HH:mm format|
+|url|<input type="url" />|A text input that validates for a URL|
+|week^1^|<input type="week" />|An input that accepts a week number and a year|
+
+
+> 1. These input types only enjoy partial support across the latest browsers. None of them are supported by IE 11.
+
+The two other most commonly used elements for capturing user input are the textarea, rendering a multi-line textbox, and the select element, which is used to encapsulate multiple option elements, providing the user with a mechanism for choosing one or more of fixed list of options.
+
+##### Accessing User Input
+
+User input is only available to server-side code if the form control has a value applied to the name attribute. There are several ways to reference posted form values:
+
+- Accessing the Request.Form collection via a string-based index, using the name attribute of the form control as the index value.
+- Leveraging Model Binding to map form fields to handler method parameter.
+- leveraging Model Binding to map form fields to public properties on a PageModel class.
+
+Request.Form
+
+> :warning: This approach is not recommended, although it offers a level of familiarity to developers who are migrating from other frameworks (such as php, classic ASP or ASP.NET Web Pages) where Request.Form is the only native way to access posted form values.
+
+Items in the Request.Form collection are accessible via their string-based index. The value of the string maps to the name attribute given to the relevant form field. The form below has one input that accepts values named emailaddress:
+
+```html
+<form method="post">
+    <input type="email"  name="emailaddress">
+    <input type="submit">
+</form>
+```
+
+You can access the value in the OnPost handler method as follows:
+
+```csharp
+public void OnPost()
+{
+    var emailAddress = Request.Form["emailaddress"];
+}
+```
+
+The string index is case-insensitive, but it must match the name of the input. The value returned form the Request.Form collection is always a string.
+
+##### Leveraging Model Binding
+
+The recommended method for working with form values is to use model binding. Model binding is a process that maps form values to server-side code automatically, and converts the strings coming in from the Request.Form collection to the type represented by the server-side target.Targets can be handler method parameters or public properties on a PageModel.
+
+The following example shows how to revise the OnPost handler method so that the emailAddress input value is bound to a handler method parameter:
+
+```csharp
+public void OnPost(string emailaddress)
+{
+    //do something with emailAddress
+}
+```
+
+And here is how the handler code would be modified to work with a public property:
+
+```csharp
+[BindProperty]
+public string EmailAddress {get;set;}
+
+public void OnPost()
+{
+    //do something with EmailAddress
+}
+```
+
+The property to be included in model binding must be decorated with the BindProperty attribute.
+
+##### Tag Helpers
+
+The form, input, select and textarea elements are all targets of Tag helpers, components that extend the HTML element to provide custom attributes which are used to control the HTML generation.
+
+The most important attribute is the asp-for attribute that takes the name of a PageModel property. This results in the corrent name attribute being generated so that form values are bound corrently to the model when the form is posted back to the server.
+
+In the previous example, the EmailAddress property is passed to the input tag helper as follows:
+
+<intpu asp-for="EmailAddress">
+
+The resulting HTML is as follows:
+
+<input type="text" id="EmailAddress" name="EmailAddress" value="" />
+
+##### Request Verification
+
+The Razor Pages framework includes security as a feature. When you add a <form> element with a method attribute set to post, an additional hidden form field is generated for the purposes of validating that the form post originated from the same site. This process is known as Request Verification. Although not advisable, you can turn this feature off.You can read more about why this safety check is included and how to manage it here.
+
+
+
+
+
 #### Validation
 #### Model Binding
 #### State Management
