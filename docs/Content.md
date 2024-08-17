@@ -1975,7 +1975,285 @@ The resulting HTML is as follows:
 
 The Razor Pages framework includes security as a feature. When you add a <form> element with a method attribute set to post, an additional hidden form field is generated for the purposes of validating that the form post originated from the same site. This process is known as Request Verification. Although not advisable, you can turn this feature off.You can read more about why this safety check is included and how to manage it here.
 
+##### Uploading Files in Razor Pages
 
+For the most part, you will use forms to capture data from the user as simple string, numeric, datetime or boolean values. Forms can also be used to upload files. Successful file uploading has three basic requirements:
+
+1. The form must use the post method
+2. The form must have an enctype attribute set to multipart/form-data
+3. The uploaded file must map to an IFormFile data type
+
+##### Upload and save to folder
+
+The following code features a very simple page called UploadFile.cshtml with a form for uploading a file:
+
+```csharp
+@page
+@model UploadFileModel
+@{
+
+}
+
+<form method="post" enctype="multipart/form-data">
+    <input type="file" asp-for="Upload" />
+    <input type="submit" />
+</form>
+```
+
+The form has the corect enctype and the action is post, satisfying the first two requirements. The third requirement is satisfied in the page model class for the page:
+
+```csharp
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.IO;
+using System.Threading.Tasks;
+
+namespace RazorPagesForms.Pages
+{
+    public class UploadFileModel : PageModel
+    {
+        private IHostEnvironment _environment;
+
+        public UploadFileModel(IHostEnvironment environment)
+        {
+            _environment = environment;
+        }
+
+        [BindProperty]
+        public IFormFile Upload{get;set;}
+
+        public async Task OnPostAsync()
+        {
+            var file = Path.Combine(_environment.ContentRootPath,"Uploads", Upload.FileName);
+
+            using (var fs = new FileStream(fiel, FileMode.Create))
+            {
+                await Upload.CopyToAsync(fs);
+            }
+        }
+    }
+}
+```
+
+An IFormFile is added as a public property to the to the page model. It is decorated with the BindProperty attribute, to ensure that it participates in model binding. The property is given the same name as the name attribute on the file input in the form - "Upload" which ensures that model binding will copy the contents of the upload to the public property.
+
+IHostingEnvironment is injected into the constructor of the page model class via dependency injection. It provides access to information about the current hosting environment, including the root folder for the site via its ContentRootPath property, which is used to construct a file path location for the uploaded file to be saved to in the asynchronous OnPost handler method.
+
+##### Checkboxes in a Razor Pages Form
+
+Checkboxes are used in a Razor Pages form to enable users to select zero or more predefined options. Checkboxes are a type of input element, and some aspects of their behaviour is unique and needs to be understood when deciding whether, and how to use them.
+
+##### Checkbox Basic 
+
+checkboxes are rendered in HTML by setting the type attribute in an input element to checkbox:
+
+```html
+<input type="checkbox">
+```
+
+This appears in most browsers as a small box: <input type="checkbox">. When it is selected, the box acquires a tick:<input type="checkbox" checked>.This state is indicated in HTML by the presence of a checked attribute on the element:
+
+```html
+<input type="checkbox" checked>
+```
+
+You can also provide a value to the checked attribute. Any of the following are considered valid values according to the HTML 5 spec:
+
+```html
+<input type="checkbox" checked="">
+<input type="checkbox" ehecked="checked">
+<input type="checkbox" checked="CHECKED">
+```
+
+Most browers will interpret any as indicating true, so even the following will result in the checkbox being checked:
+
+```html
+<input type="checkbox" checked="false">
+
+```
+
+> :information_source: Note that if you pass a Razor expression to the checked attribute that evaluates to anything other than true, the checked attribute will not be rendered at all. So the following will result in the checked attribute being omitted from the generated HTML:
+>
+> \<input type="checkbox" checked="@(1==0)" \>
+
+As with any form field, the checkbox needs a name attribute specified so that its a value can be submitted.
+
+```html
+<input type="checkbox" name="myCheckbox">
+```
+
+The value will only be submitted if the checkbox is checked. If nothing is specified for the value attribute, on will be submitted for a checkbox value:
+
+![checkbox](assets/17.png)
+
+##### Razor Checkboxes
+
+Razor offers two ways to generate checkboxes.The recommended approach is to use the input tag helper. Any boolean property of the PageModel will render a checkbox if it passed to the asp-for attribute, so long as the property is not nullable:
+
+```csharp
+public class IndexModel : PageModel
+{
+    public bool IsChecked {get;set;}
+    //...
+}
+```
+
+```html
+<input asp-for="IsChecked">
+```
+
+You can also use a string property, so long as the value of the string can be parsed as a boolean value (true of false).
+
+The property name passed to the asp-for attribute is used for the values of both the id and name attributes. The rendered HTML will also include two fields for the IsChecked property:
+
+```html
+<input type="checkbox" data-val="true" data-val-required="The IsChecked field is required." id="IsChecked" name="IsChecked" value="true">
+<input name="IsChecked" type="hidden" value="false">
+```
+
+The second field is a hidden field. It will be submitted regardless whether the checkbox is checked or not. If the checkbox is checked, the posted value will be true,false. The model binder will corrently extract true from the value. Otherwise it will be false. This behaviour is really a feature of MVC, where selection of which particular action to execute on a controller can come down to the parameters that the action method takes. The hidden field will ensure that the checkbox will correspond to a bool parameter of an action method, or a Razor Pages handler method.
+
+If you don't want a hidden field to be rendered, the workaround is to NOT use the tag helper to render your checkbox.
+
+The second mechanism for generating checkboxes is the CheckBox (and CheckBoxFor) Html helper method, which again are features of MVC.Nevertheless, it is worth understanding how these work since they are available from within a PageModel.
+
+The Html.CheckBox helper takes a string that is used to render the name and id attributes of the input element:
+
+```csharp
+@Html.CheckBox("IsChecked")
+```
+
+There are overloads that enable you to set the checkbox as checked, and to provide additional arbitrary attributes:
+
+```csharp
+@Html.CheckBoxFor("IsChecked", new {@class="form-control"})
+```
+
+There Html.CheckBoxFor helper is similar to the tag helper in that it takes an expression to be evaluated against the current model:
+
+```csharp
+@Html.CheckBoxFor(model=>model.IsChecked)
+```
+
+Consequently, it supports working in a strongly typed manner where only properties of the current model will be made available by IntelliSense.
+
+Both of the Html helper methods result in a hidden field being generated along with the checkbox.
+
+##### Binding to Collections 
+
+All of the examples above illustrae rendering a single checkbox to capture a single choice. Checkboxes can also be used to manage multiple selections. Checkboxes can be used with simple collections, such as those that permit the user to select one or more options from a prepared list, or they can be used in conjunction with a collection of complex objects.
+
+##### Simple Collections
+
+The following Razor code illustrates generating 10 checkboxes, all with the same value for the name attribute, but each with a different value attribute:
+
+```html
+<form method="post">
+    @for (var i=1;i<=10;i++>)
+    {
+        <input name="AreChecked" type="checkbox" value="@i" />@i<br/>
+    }
+    <button>click</button>
+</form>
+```
+
+This is how the  resulting HTML renders:
+
+![select](assets/18.png)
+
+When you select multiple boxes and submit the form, the values are included in the request like this:
+
+```
+AreChecked=1&AreChecked=2&AreChecked=4&AreChecked=6&AreChecked=10
+```
+
+ASP.NET Core processes that into StringValues type, which represents null/zero, one or more strings:
+
+![checkboxselect](assets/19.png)
+
+The model binder will bind those  values to a collection whose property name matches the value of the name attribute of the elements and whose type supports conversion of the submitted values. In this case, a collection of type int will work, as well as a collection of string types:
+
+![checkboxpassed](assets/20.png)
+
+The key to this scenario is to ensure that the name attribute is the same for each input. Also, you should note that if you specify a non-boolean property in the asp-for attribute of an input tag helper, Razor renders an input whose type is set to text, so you must use plain HTML, to render checkboxes that enable binding to a simple collection.
+
+##### Collections of Complex Objects
+
+In the next example, the checkbox is used to represent a boolean property of a complex type - the Dispatched property of an Order entity. You have a list of orders made this week. You have added a property to the PageModel to represent the data and ensured that posted values will be bound to it:
+
+```csharp
+[BindProperty]
+public List<Order> OrdersThisWeek{get;set;}=new List<Order>();
+```
+
+You want to display the orders on screen together with an updatable checkbox to indicate whether the order has been dispatched.Therefore the task is to get the model binder to associate each checkbox with a specific order. The following code shows how that is achieved:
+
+```csharp
+<form method="post">
+    <table class="table">
+        <tr>
+            <th>Id</th>
+            <th>Customer</th>
+            <th>Date</th>
+            <th>Dispatched</th>
+        </tr>
+        @for (var i = 0; i < Model.OrdersThisWeek.Count(); i++)
+        {
+            <tr>
+                <td>
+                    <input type="hidden" asp-for="OrdersThisWeek[i].OrderId" />
+                    @Model.OrdersThisWeek[i].OrderId
+                </td>
+                <td>@Model.OrdersThisWeek[i].Customer</td>
+                <td>@Model.OrdersThisWeek[i].OrderDate.ToShortDateString()</td>
+                <td><input asp-for="OrdersThisWeek[i].Dispatched" /></td>
+            </tr>
+        }
+    </table>
+    <button>Update</button>
+</form>
+```
+
+Here is how the HTML renders:
+
+![complexresultview](assets/21.png)
+
+The key to associating related properties of items in a collection is to use an indexer. In the example above, a sequential index has been used. Sequential indices must start at zero, and there can be no gaps in the sequence.
+
+Although the example above features an edit scenario, sequential indices are more likely to be used when  adding collections of new items. When editing collections,you are more likely to use the other type of index supported by the model binder - an explicit index.
+
+An explicit index supports any value that uniquely identifies an item of data. Usually, this is the key value for an item, typically an int, but you can just as validly use GUIDs, strings, date and time values etc.When using this indexing system, you must include a hidden field that explicitly states the index value for an item. The hidden field must be named in the form boundpropertyname.Index, and the value must be the index. Here is the previous form modified to use the order's orderId values as an explict index:
+
+```csharp
+<form method="post">
+    <table class="table">
+        <tr>
+            <th>Id</th>
+            <th>Customer</th>
+            <th>Date</th>
+            <th>Dispatched</th>
+        </tr>
+        @foreach (var order in Model.OrdersThisWeek)
+        {
+            <tr>
+                <td>
+                    <input type="hidden" name="OrdersThisWeek.Index" value="@order.OrderId" />
+                    <input type="hidden" name="OrdersThisWeek[@order.OrderId].OrderId" value="@order.OrderId" />
+                    @order.OrderId
+                </td>
+                <td>@order.Customer</td>
+                <td>@order.OrderDate.ToShortDateString()</td>
+                <td><input name="OrdersThisWeek[@order.OrderId].Dispatched" value="true" /></td>
+            </tr>
+        }
+    </table>
+    <button>Update</button>
+</form>
+```
+
+This time, it is not possible to use tag helpers to  generate the checkbox. Therefore you must set the name and value attributes yourself.
 
 
 
