@@ -2591,6 +2591,127 @@ public void OnGet()
 </select>
 ```
 
+#### Dates And Times in a Razor Pages Form
+
+When working with dates and times in a Razor Pages form, you need to render a suitable control based in the task requirement. A variety of native browser options exist, although they enjoy varied support across modern browsers.There include options for managing the date and time, just the date or time, and for working with the month or week of the year.
+
+##### DateTime Inputs
+
+In Razor Pages, the input tag helper renders an appropriate value for the type attribute based on the data type of the model property specified via the asp-for attribute.
+
+```csharp
+[BindProerty]
+public DateTime DateTime {get;set;}
+```
+
+```html
+DateTime: <input class="form-control" asp-for="DateTime" />
+```
+
+The default input type generated in Razor Pages for DateTime properties is datetime-local. In Chrome, Edge and Opera，datetime-local renders a control that enables the user to select a date and time.The formatting of the appearance of the date and time in the control is decided by the locate settings of the underlying operating system,and the value itself is assumed to represent a local date and time as opposed to a universal time:
+
+<input type="DateTime-local" />
+
+If you are using another browser (IE 11, Firefox, Safari), the control renders a plain input that behaves like a text input.
+
+When examining the rendered mark up, you see that the value has been formatted by the input tag helper to a representation based on the ISO 8601 standard:
+
+```csharp
+<input class="form-control" type="datetime-local" data-val="true" data-value-required="The DateTime field is required." id="DateTime" value="2020-10-29T06:42:55.806">
+```
+
+This is the format that the HTML5 control requires according to RFC3339.This format also binds correctly to a C# DateTime type, without you having to worry about cultural settings on the client.You should bear this in mind if you try to apply the value to the control yourself,e.g. via script.If you need to generate a suitably formatted value using .NET, you can use the "O" (or "o") format string, although you will need to set the Kind to Unspecified to ensure that the time zone offset is not included in the output because the datetime-local control doesn't support it:
+
+By default,the formatted string includes the time down to the millisecond, so the time picker part of the UI provides options to set hours,minutes,seconds and milliseconds:
+
+DateTime:
+
+![DateTime](assets/24.png)
+
+More often, you will only want to enable the user to specify the time to the minute.You control this through the formatting of the time portion of the value passed to the control. You can do this in one of two ways.You can use the DisplayFormat data annotation attribute on the model property to specify the format and ensure that the format also applies when the value is in "edit mode" (a form control):
+
+```csharp
+[BindProperty,DisplayFormat(DataFormatString="{0:yyyy-MM-ddTHH:mm}",ApplyFormatInEditMode=true)]
+public DateTime DateTime {get;set;}
+```
+
+Alternatively, you can use the asp-format attribute on the input tag helper itself:
+
+```html
+DateTime:<input class="form-control" asp-for="DateTime" asp-format="{0:yyyy-MM-ddTHH:mm}" />
+```
+
+DateTime:
+![DateTime](assets/25.png)
+
+The default value for a DateTime in .NET is DateTime.MinValue,represented as 0001-01-01T00:00:00 in the control. If you don't want any value to appear initially, you can make the bound property nullable:
+
+```csharp
+[BindProperty]
+public DateTime? DateTime{get;set;}
+```
+
+Then the control will display its default settings:
+
+DateTime:
+
+<input type="datetime-local">
+
+##### Date And Time Inputs
+
+To support a wider range of browsers using native controls as opposed to third party libraries, you can use separate date and time controls. A little more configuration is required in order to get the input tag helper to render the correct controls:
+
+```csharp
+[BindProperty，DataType(DataType.Date)]
+public DateTime Date{get;set;}
+[BindProperty, DataType(DataType.Time)]
+public DateTime Time{get;set;}
+```
+
+Both properties are DateTime types, but the DataType attribute is applied to them to set the correct type in the rendered input.The input tag helper supports both the DataType.Date and DataType.Time options and will render accordingly:
+
+![Date](assets/26.png)
+
+
+![Date](assets/27.png)
+
+Once again, you can format the time by applying a format string to either a DisplayFormat attribute on the model property or via the asp-format attribute on the tag helper. When the values are posted, the model binder successfully constructs DateTime types with the time portion set to midnight in the case of the date input's value, and the date protion set to today in the case of the time input's value. You can combine the values to construct a new DateTime:
+
+```csharp
+DateTime dt = Date.Add(Time.TimeOfDay);
+```
+
+##### Coordinated Universal Time
+
+Coordinated Universal Time (or UTC) is recommended for use in applications that require dates and times to be stored or represented in a time zone agnostic fashion. None of the date or time controls support the ISO 8601 representation of a UTC time value e.g. yyyy-MM-ddTHH:mm:ssZ (where Z is the time zone information, representing zero time zone offset, and therefore identifies this value as a UTC time). However, you may have to work with applications where this standard format is used to exchange time information.
+
+In .NET Core 3.0 applications or earlier, the model binder will successfully create a DateTime value from a valid ISO 8601 UTC time string, but it will generate a local time based on the settings of the server on which the application executes.
+
+For example, take a value representing 02:15 on the morning of Octobe 30th, 2020, UTC: 2020-10-30T02:15:00Z. The following image shows how the model binder parses this value when the server is set  to Pacific Time Zone:
+
+![pacifictimezone](assets/28.png)
+
+The default DateTimeModeBinder is able to recognise and process date and time strings that include time zone information. If the time zone is missing, the binder sets the Kind property of the resulting DateTime value to DateTimeKind.Unspecified. Other DateTimeKind values are local (representing a local time) and Utc (a UTC time).Notice that the Kind in the image above is set to Local instead of Utc, despite the fact that this is clearly a UTC time, given the presence of the z at the end of the string. The binder has converted the UTC time to a local time, based on the server settings. On 30th October 2020, Pacific Daylight Time applies which is 7 hours prior to the UTC value i.e. last night. On 1st November 2020, daylight saving ends on the west coast of the US, and the generated value is 8 hours prior to UTC,so the parsed value will represent a different time again. In order to get the UTC value within a Razor Pages 2.x or 3.x application, you need to either use the ToUniersalTime() method on the parsed result:
+
+![utc](assets/29.png)
+
+Or you can implement your own model binder to process UTC time strings globally within the application.
+
+From .NET 5, this has been resolved so that UTC times are handled correctly by the model binder without requiring any additional processing on the bound value:
+
+![DateTime](assets/30.png)
+
+None of the values have been adjusted, and the Kind is set to Utc automatically.
+
+##### Month And Week Inputs
+
+Month and week input types are implemented currently by Edge, Chrome and Opera. Where is it supported, the month type provides a means for the user to selected a specific month and year:
+
+<input type="month" class="form-control" value="2000-06">
+
+
+
+
 #### Validation
 #### Model Binding
 #### State Management
