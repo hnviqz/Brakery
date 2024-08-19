@@ -3008,10 +3008,15 @@ Note that you will need to add a using directive to bring the Microsoft.AspNetCo
 ```
 You can do this in the page itself, or you can add it to the ViewImports file to make the namespace available to all pages that it affects.
 
-
-
-
 #### Validation
+
+##### Validating User Input in Razor Pages
+
+When you allow users to provide values that you then process, you need to ensure that the incoming values are of the expected data type, that they are within the permitted range and that required values are present. This process is known as input validation.
+
+The term "user input" covers any value that the user has control over.Values provided via forms constitute the bulk of user input,but user input also comes in the form of values provided in URLs and cookies.The default position should be that all user input is to be considered untrusted.
+
+You can validate user input in two places in a web application: in the browser using client-side script or the browser's in-built data type validation; and on the server. However, you should only ever view client-side validation as a courtesy 
 #### Model Binding
 #### State Management
 #### Cache
