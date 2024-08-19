@@ -3016,7 +3016,69 @@ When you allow users to provide values that you then process, you need to ensure
 
 The term "user input" covers any value that the user has control over.Values provided via forms constitute the bulk of user input,but user input also comes in the form of values provided in URLs and cookies.The default position should be that all user input is to be considered untrusted.
 
-You can validate user input in two places in a web application: in the browser using client-side script or the browser's in-built data type validation; and on the server. However, you should only ever view client-side validation as a courtesy 
+You can validate user input in two places in a web application: in the browser using client-side script or the browser's in-built data type validation; and on the server. However, you should only ever view client-side validation as a courtesy to the user because it is easily circumnavigated.
+
+The MVC framework,on which Razor Pages is built, includes a robust validation framework that works against inbound model properties on the client-side and on the server.
+
+The key players in the input validation framework are:
+
+- DataAnotation Attributes
+- Tag helpers
+- JQuery Unobtrusive Validation
+- ModelState
+- Route Constraints
+
+##### DataAnnotation Attributes
+
+The primary building block of the validation framework is a set of attributes that inherit from ValidationAttribute. Most of these attributes reside in the System.ComponentModel.DataAnnotations namespace.
+
+|Attribute|Description|
+|---|---|
+|Compare^1^|Used to specify another form field that the value should be compared to for equality|
+|MaxLength|Sets the maximum number of characters/bytes/items that can be accepted|
+|MinLength|Sets the minimun number of characters/bytes/items that can be accepted|
+|PageRemote^2^|Enables client-side validation against a server-side resource,such as a database check to see if a username is already in use|
+|Range|Sets the minimum and maximum values of a range|
+|RegularExpression|Checks the value against the specified regular expression|
+|Remote^2^|Enables client-side validation against a server-side resource, such as a database check to see if a username is already in use|
+|Required|Specifies that a value must be provided for this property. Note that non-nullable value types such as DateTime and numeric values are treated as required by default and do not need this attribute applied to them|
+|StringLength|Sets the maximum, and optionally, the minimum number of string characters allowed|
+
+**Note**
+
+1. The Compare attribute does not work as expected when applied to properties of a PageModel in Razor Pages 3.x and earlier.The workaround is to either manually compare the property values in code, or to create a create a "wrapper" object for the bound properties (like an InputModel). The compare attribute is supported when it is applied to the properties of such an object.For further discussion,From .NET 5 onwards, the Compare attribute works without any additional steps being necessary.
+
+2. The Remote attribute works within the context of an MVC controller.The PageRemote attribute is designed for use in remote validation of PageModel properties in Razor Pages.
+
+
+Apart from the Remote attribute, all the other attribute cause validation to occur on both the client and the server.The Remote attribute also differs from the others in that it doesn't belong to the DataAnnoations namespace.It is found in the Microsoft.AspNetCore.Mvc namespace.
+
+Attribute are applied to properties on the inbound model-typically a PageModel or ViewModel:
+
+```csharp
+public class userModel:PageModel
+{
+    [BindProperty]
+    [Required]
+    [Minlength(6)]
+    public string UserName{get;set;}
+    [BindProperty]
+    [Required,MinLength(6)]
+    public string Password{get;set;}
+    [BindProperty,Required,Comare(nameof(Password))]
+    public string Password2{get;set;}
+}
+```
+
+Each attribute can be declared separately, or as a comma separated list, or mixture of both.
+
+##### Client side validation
+
+> **Important**
+>
+> Client-side validation should only ever be viewed as a courtesy to users, in that it provides immediate feedback to the user in the event taht they have not provided satisfactory input. Your application must not rely solely on client-side validation because it is very easy to circumvent by anyone who has a small amount of HTML/Javascript knowledge.
+
+
 #### Model Binding
 #### State Management
 #### Cache
