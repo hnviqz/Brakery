@@ -2709,6 +2709,305 @@ Month and week input types are implemented currently by Edge, Chrome and Opera. 
 
 <input type="month" class="form-control" value="2000-06">
 
+The input tag helper will render a control with type="month" with a little configuration. This is achieved by using the DataType attribute overload that takes a string parameter representing a custom data type:
+
+```csharp
+[BindProperty, DataType("month")]
+public DateTime Month{get;set;}
+```
+
+The format of the input month's value is yyyy-MM. The input tag helper generates a suitable values successfully from a DateTime type. So you don't need to apply any format strings in order to get the month selector to render correctly:
+
+```html
+<input class="form-control" asp-for="Month" />
+```
+
+When values are posted back, the default DateTimeModelBinder will bind this value to a DateTime, with the correct month and year, and the day set to 1.
+
+The week input type will also render successfully just through setting a custom data type on a DateTime property:
+
+```csharp
+[BindProperty,DataType("week")]
+public DateTime Week {get;set;}
+```
+
+The valid format for the value is yyyy-Www, where the capital W is a literal "W" and ww represents the ISO 8601 week of the selected year. There is no format string in .NET for the week part of a DateTime, but the tag helper generates the correctly formatted value from a DateTime type successfully:
+
+![week](assets/31.png)
+
+<input type="week" value="2020-W47">
+
+However, the default DateTimeModelBinder is unable to bind that value back to a DateTime. You have a number of options. The most crude option is to access the value directly from the Request.Form collection, parse it as a string and generate a DateTime yourself:
+
+```csharp
+public void OnPost()
+{
+    var week = Request.Form["Week"].First().Split("-W");
+    week = ISOWeek.ToDateTime(Convert.ToInt32(week[0]),Convert.ToInt32(week[1]),DayOfWeek.Monday);
+}
+```
+
+This example uses the ISOWeek  utility class that was added in .NET Core 3.0. If you are working on a .NET Core 2 project, you can use the Calendar.GetWeekOfYear() method, but be aware that in some edge cases, it doesn't return the ISO 8601 week of the year.
+
+You could also bind to a string instead of a DateTime. You would have to generate a property formatted value, as well as parse the result:
+
+```csharp
+public string StringWeek{get;set;}
+public void OnGet()
+{
+    StringWeek = $"{DateTime.Now.Year}-W{ISOWeek.GetWeekOfYear(DateTime.Now)}";
+}
+```
+
+Alternatively, you can implement a custom model binder.
+
+##### Working With Radio Buttons in ASP.NET Razor Pages
+
+The radio button control is designed to support the selection of only one of a mutually exclusive set of predefined options.
+
+##### Radio Basics
+
+The radio control is rendered in HTML by setting the type attribute in an input element to radio:
+
+```html
+<input type="radio" />
+```
+
+This appears in most browsers as a small disc or circle: :white_circle:. When it is selected, the disc acquires a dot: :radio_button:. This state is indicated in HTML by the presence of a checked attribute on the element:
+
+```html
+<input type="radio" checked>
+```
+
+You can also provide a value to the checked attribute. Any of the following are considered valid values according to the HTML 5 spec:
+
+```html
+<input type="radio" checked="">
+<input type="radio" checked="checked">
+<input type="radio" checked="CHECKED">
+```
+
+Most browsers will set the state of the radio to selected based solely on the presence of the checked attribute, regardless of the value passed to it, so even the following will result in the radio being selected:
+
+```html
+<input type="radio" checked="false">
+```
+
+However, this will fail HTML 5 validation testing.
+
+> :information_source: Note that if you pass a Razor expression to the checked attribute that evaluates to anything other that true, the checked attribute will not be rendered at all.
+
+Radio button options are grouped together and become mutually exclusive when the same value is assigned to the name attribute to multiple controls:
+
+```html
+<input type="radio" name="gender" value="Male" />
+<input type="radio" name="gender" value="Female" />
+<input type="radio" name="gender" value="Unspecified" />
+```
+
+Only one can be selected at any one time:
+
+<input type="radio" name="gender" value="Male" />Male
+<input type="radio" name="gender" value="Female" />Female
+<input type="radio" name="gender" value="Unspecified" />Unspecified
+
+The only way to deselect a particular value is to select an alternative value within the same group.
+
+##### Razor Radio Buttons
+
+Razor offers two ways to generate radio buttons. The recommended approach is to use the input tag helper. When creating a radio button, you must provide the value of one the predefined options to the value attribute.
+
+```csharp
+public class IndexModel : PageModel
+{
+    [BindProperty]
+    public string Gender {get;set;}
+
+    public string[] Genders = new[] {"Male","Female","Unspecified"};
+}
+```
+
+```html
+<form method="post">
+    @foreach(var gender in Model.Genders)
+    {
+        <input type="radio" asp-for="Gender" value="@gender" />@gender<br />
+    }
+    <input type="submit" />
+</form>
+```
+
+The property name passed to the asp-for attribute is used for the values of both the id and name attributes. Using the pattern above will result in multiple elements with the same id property value:
+
+```html
+<input type="radio" value="Make" id="Gender" name="Gender" />Male <br />
+<input type="radio" value="Female" id="Gender" name="Gender" />Female <br />
+<input type="radio" value="Unspecified" id="Gender" name="Gender" />Unspecified<br />
+```
+
+You can override this behaviour by supplying your own unique id value for each element:
+
+```html
+@foreach(var gender in Model.Genders)
+{
+    <input type="radio" asp-for="Gender" value="@gender" id="Gender@(gender)" />@gender<br />
+}
+```
+
+These methods are primarily added to enable easier migration from traditional MVC to ASP.NET Core.
+
+##### Default Values And Required Fields
+
+You can specify that the property that the selected value should be bound to is Required:
+
+```csharp
+[BindProperty,Required]
+public string Gender {get;set;}
+```
+
+This will prevent the from being submitted if you are using unobstrusive validation. You can also force a value to be selected by setting a default value for the property:
+
+```csharp
+[BindProperty]
+public string Gender {get;set;}="Unspecified";
+```
+
+###### Request verification
+
+Request Verification in ASP.NET Razor Pages is a mechanism designed to prevent possible Cross Site Request Forgery attacks, also referred to by the acronyms XSRF and CSRF.
+
+During a CSRF attack, a malicious user will use the credentials of an authenticated user to perform some action on a web site to their benefit. The canonical example used to illustrate this type of attack involves online banking.
+
+When you log into your bank account online, your browser receives an authentication cookies which is then passed back to the banking site each time you make a request, keeping you logged in. The authentication cookies will have a predetermined life. It may be session-based, which means it could be valid for a period of time after you have closed the online banking's browser tab without using the banking application's log out feature and not having closed your browser.
+
+While this cookies is still valid, you find yourself on another site that initiates a form post to your banking site that makes a transfer from your account to another. This form post is authenticated by your cookies and the banking site honours the transaction because it failed to verify where the request came from.
+
+The prevention mechanism provided by the ASP.NET framework for this type of attack involves verifying that any POST request made to a Razor page originates from a form on the same site.
+
+The form tag helper injects a hidden form field named _RequestVerificationToken at the end of every form with an encrypted value representing the token.This value is also sent to the browser in a samesite cookie. The presence of both of these items and their values are validated when ASP.NET Core processes a POST request. If verification fails, the framework returns an HTTP status code of 400,signifying a Bad Request.
+
+##### Opting Out
+
+This behaviour is baked into the Razor Pages framework. However, it is possible to turn off anti-forgery token verification. This can be done globally in Program.cs (.NET 6 onwards) or the ConfigureServices method in Startup:
+
+```csharp
+builder.Services.AddRazorPages().AddRazorPagesOptions(o=>{
+    o.Conventions.ConfigureFilter(new IgnoreAntiforgeryTokenAttribute());
+});
+```
+
+Or you can bypass the checks by adding the IgnoreAntiforgeryTokenAttribute to the relevant PageModel class (not a handler method):
+
+```csharp
+[IgnoreAntiforgeryToken(Order=1001)]
+public class IndexModel:PageModel
+{
+    public void OnPost()
+    {
+
+    }
+}
+```
+
+The ValidateAntiForgeryToken attribute which is applied by default has an order of 1000, therefore the IgnoreAntiforgeryToken attribute needs a higher order number to be activated.
+
+Alternatively, you can turn off token validation globally as above, and then selectively apply token validation on a case by case basic by decorating the appropriate PageModel class with the ValidateAntiForgeryToken attribute (applying the same logic to the Order value as previously):
+
+```csharp
+public class IndexModel : PageModel
+{
+    public void OnPost()
+    {
+
+    }
+}
+```
+
+The ValidateAntiForgeryToken attribute has an upper case "F" in its name, whereas the IgnoreAntiforgeryToken has a lower case "f". This is by design.
+
+Choosing to opt out of Antiforgery validation using these methods does not prevent the generation of the hidden field or the cookie. All it does is to skip the verification process.
+
+If, in addition to disabling request verification, you want to prevent the hidden form field being rendered, pass false to the antiforgery attribute in the form tag helper:
+
+```csharp
+<form asp-antiforgery="false" method="post">
+```
+
+Note: this action on its own does not disable request verification.
+
+Generally, there is no good reason to disable request verification. If you want your site to accept POST requests from external domains, the recommended solution is to use a web API controller instead.
+
+##### Configuration
+
+Various options relating to the AntiForgery feature are configurable via the AntiforgeryOptions class:
+
+|Option|Description|Default Value|
+|---|---|---|
+|Cookie|Provides access to configuring aspects of the cookie|If a value for the cookie name is not specified, a unique value will be generated prefixed with .AspNetCore.Antiforgery.|
+|FormFieldName|The name used for the hidden form field|_RequestVerificationToken|
+|HeaderName|The name used for the request header|RequestVerificationToken|
+|SuppressXFrameOptionsHeader|If set to true, the X-Frame-Options header will not be set.By default, it is set with the value SAMERIGIN|'false'|
+
+You can configure these options in Program.cs(.NET 6) or the ConfigureServices method in Startup.The following example changes the header name from RequestVerificationToken to XSRF-TOKEN:
+
+```csharp
+builder.Services.AddAntiforgery(o=>o.HeaderName="XSRF-TOKEN");
+```
+
+##### AJAX Post Requests And JSON
+
+It is easy to forget about the anti-forgery token when crafting a POST request made with AJAX. If you omit the value from the request, the server will return a 400 Bad Request result.
+
+For most requests, you have a choice whether to include the value as a form field or a request header, but if you want to post your data as JSON via AJAX, you have to send the token as part of the headers because ASP.NET Core does not parse JSON looking for the verification token.Here's how you might achieve that using JQuery's $.ajax method:
+
+```javascript
+var postSubmit = $.ajax({
+    type:"post",
+    headers:{
+        "RequestVerificationToken":$('input[name="__RequestVerificationToken"]').val()},
+        url:"/yourformhandler",
+        data:JSON.stringify({...}),
+        contentType:"application/json"
+    }).done(function(response){});
+```
+
+A form is not necessarily needed for an AJAX POST request.However, you need to generate an antiforgery token so that you can pass its value with the request. You can do by either including an empty form element with the method set to post:
+
+```html
+<form method="post"></form>
+```
+
+or you can use the AntiForgeryToken HTML helper:
+
+```html
+@Html.AntiForgeryToken()
+```
+
+Both of these approaches will result in the __RequestVerificationToken hidden field being added to the page. If you prefer not to have a form or even a hidden field, you can inject the IAntiforgery interface into the page itself, and use its GetAndStoreTokens method to generate the token:
+
+```csharp
+@page
+@model LearnRazorPages.Pages.IndexModel
+@inject IAntiforgery antiforgery
+@{
+    var token = antiforgery.GetAndStoreTokens(HttpContext).RequestToken;   
+}
+//...
+<script>
+$(function(){
+    $post("/yourformhandler", {name1: param1, __RequestVerificationToken: '@token'});
+});
+</script>
+
+```
+
+Note that you will need to add a using directive to bring the Microsoft.AspNetCore.Antiforgery namespace into scope so that the IAntiforgery type is resolved:
+
+```csharp
+@using Microsoft.AspNetCore.Antiforgery
+```
+You can do this in the page itself, or you can add it to the ViewImports file to make the namespace available to all pages that it affects.
+
 
 
 
