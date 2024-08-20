@@ -3078,6 +3078,323 @@ Each attribute can be declared separately, or as a comma separated list, or mixt
 >
 > Client-side validation should only ever be viewed as a courtesy to users, in that it provides immediate feedback to the user in the event taht they have not provided satisfactory input. Your application must not rely solely on client-side validation because it is very easy to circumvent by anyone who has a small amount of HTML/Javascript knowledge.
 
+Client-side validation support is provided by the jQuery Unobtrusive Validation library, developed by Microsoft. You must include jQuery Unobtrusive Validation within the page containing the form for client side validation to work.This is most easily accomplished by the inclusion of the _ValidationScriptsPartial.cshtml file (located in the Shared folder) within the page:
+
+```csharp
+@section scripts{
+    <partial name="_ValidationScriptsPartial" />
+}
+```
+
+Obviously, you should also ensure that jQuery is available to the page too.
+
+Client side validation works with special HTML 5 data-* attributes emitted by tag helpers.To see how that works,here is a simple tag helper-based form featuring the properties above:
+
+```html
+<form method="post">
+    <div>
+        <input asp-for="UserName" />
+        <span asp-validation-for="UserName"></span>
+    </div>
+    <div>
+        <input asp-for="Password" />
+        <span asp-validation-for="Password"></span>
+    </div>
+    <div>
+        <input asp-for="Password2" />
+        <span asp-validation-for="Password2"></span>
+    </div>
+
+    <div>
+        <input type="submit" />
+    </div>
+</form>
+```
+
+This form uses the validation message tag helper to output validation error messages. This is how the form renders as HTML:
+
+```HTML
+<div>
+    <input type="text" data-val="true" data-val-minlength="The field UserName must be a string or array type with a minimum length of &#x27;6&#x27;." data-val-minlength-min="6" data-val-required="The UserName field is required." id="UserName" name="UserName" value="" />
+    <span class="field-validation-valid" data-valmsg-for="UserName" data-valmsg-replace="true"></span>
+<div>
+    <input type="text" data-val="true" data-val-minlength="The field Password must be a string or array type with a minimum length of &#x27;6&#x27;." data-val-minlength-min="6" data-val-required="The Password field is required." id="Password" name="Password" value="" />
+    <span class="field-validation-valid" data-valmsg-for="Password" data-valmsg-replace="true"></span>
+</div>
+<div>
+    <input type="text" data-val="true" data-val-equalto="&#x27;Password2&#x27; and &#x27;Password&#x27; do not match." data-val-equalto-other="*.Password" data-val-required="The Password2 field is required." id="Password2" name="Password2" value="" />
+    <span class="field-validation-valid" data-valmsg-for="Password2" data-valmsg-replace="true"></span>
+</div>
+<div>
+    <input type="submit" />
+</div>
+```
+
+Validation is activated by the inclusion of the data-val attribute with a value of true which has been applied to the span elements targeted by the validation message tag helper.Various other data-val-* attributes are added as part of the tag helper rendering to specify the type of validation required and the error message, which can be customised as part of the attribute declaration:
+
+```csharp
+[Compare(nameof(Password)),ErrorMessage="Make sure both passwords are the same"]
+public string Password2{get;set;}
+```
+
+```html
+<input type="text" data-val="true"
+    data-val-equalto="Make sure both passwords are the same"
+    data-val-equalto-other="*.Password"
+    data-val-required="The Password2 field is required." 
+    id="Password2" name="Password2" value="" />
+```
+
+Validation message or summary tag helpers are required to provide somewhere for the error message to be displayed. Without these, any attempt to submit a form that fails client-side validation will not succeed, but without any visual clues as to why, potentially leaving the user confused.
+
+##### Server side validation
+
+Client side validation will not take place unless you include _ValidationScriptsPartial.cshtml in your form, or if you don't use tag helpers to generate the HTML for your form controls.
+
+There are a number of other ways to circumvent client-side validation:
+
+- Use the browser's developer tools to change data-val="true" to data-val="false"
+- Save a copy of the form to your desktop and remove the validation scripts
+- Use Postman, Fiddler or Curl to post the form values directly
+- etc...
+
+Because it is so easy to circumvent client-side validation, server-side validation is included as part of the ASP.NET Core validation framework.Once property values have been bound,the framework looks for all validation attributes on those properties and executes them.Any failures result in an entry being added to a ModelStateDictionary - a dictionary-like structure where validation errors are stored. This is made available in the PageModel class via ModelState, which has a property named IsValid that returns false if any of the validation tests fail:
+
+```csharp
+public IActionResult OnPost()
+{
+    if(ModelState.IsValid)
+    {
+        //do something
+        return RedirectToPage("Contact");
+    }
+    else
+    {
+        return Page();
+    }
+}
+```
+
+The snippet above illustrates the most common pattern for dealing with validation in an OnPost handler - query ModelState's IsValid property, and if it returns true, process the form otherwise redisplay the form, and let the framework take care of extracting error messages from ModelState and passing them to the validation message and/or summary tag helpers.If you use this approach, the values submitted by the user will be retained in the form for the user to modify accordingly.
+
+If the form post passes validation, the PRG(Post-Redirect-Get) pattern is used to minimise the possibility of duplicate submission of form values.
+
+##### Route Contraints
+
+Input validation has so far focused on form submissions, but input can also be provided by the user in URLs as route values.In fact, URLs are the most common attack vector for those whose intent is malicious.Therefore,validating route parameter values for presence, data type and range is not to be overlooked.
+
+Constraints provide a way to disambiguate routes but they also act as means of specifying a white list of acceptable values. There is a wide range of constraints available, and they can be combined to form very restrictive rules that must be satisfied by the incoming value.If the constraints aren't satisfied, the framework returns a 404 Not Found instead of raising an exception.
+
+You can read more about applying constraints in the routing topic.
+
+##### Remote Validation in Razor Pages
+
+Remote Validation is a technique that uses client side script to validate user input on the server without posting the entire form. It is typically used to compare the user input with a dynamic list of values.One example of its use would be to prevent duplicate user names being submitted.You can craft your own solution for managing remote validation,but there are also components provided as part of ASP.NET for managing remote validation in Razor Pages applications.
+
+Razor Pages remote validation requires four things:
+
+- The jQuery Unobstrusive Validation library
+- Application of the Remote or PageRemote attribute to the model property being validated
+- The property to be validated must be a direct descendent of the PageModel class (i.e. not a property of a child property of the PageModel, also referred to as a "nested property")
+- A remote resource (page handler method or MVC controller action) to perform the validation
+
+##### Remote or PageRemote?
+
+The RemoteValidation attribute has been around a long time in one form or another. It was introduced into MVC in the pre .NET Core days, and was the only way to perform remote validation in ASP.NET Core 1.x or 2.x.Being part of MVC, the RemoteValidation attribute depends on an MVC controller action to do its work.The PageRemoteValidation attribute was introduced in ASP.NET Core 3.0, and is designed specifically to work with a Razor Pages handler method.
+
+So, if you working with ASP.NET Core 2.x, or your validation end point is an MVC controller, you must use the RemoteValidation attribute.If you are working with ASP.NET Core 3.x or newer, AND your validation service is a Razor Pages handler method, you must use the PageRemoteValidation attribute.
+
+##### example
+
+The following example features a Razor PageModel that only has one property,Email.This is bound to a text input in a form, which has Unobtrusive Validation and Unobtrusive AJAX enabled. The Unobtrusive Validation library is included as part of the standard Razor Pages project template, and included in a page via a partial. The Unobtrusive Ajax library needs to be installed, which you can do by editing the libman.json file in your project to include the following entry:
+
+```json
+"libraries":[
+    {
+        "provider":"jsdelivr",
+        "library":"jquery-ajax-unobtrusive@3.2.6",
+        "destination":"wwwroot/lib/jquery-ajax-unobtrusive/"
+    }
+]
+```
+The next block of code shows the PageModel:
+
+```csharp
+public class RemoteValidationDemoModel:PageModel
+{
+    [BindProperty]
+    public string Email{get;set;}
+}
+```
+
+Followed by the form and the scripts section in the content page:
+
+```html
+<form method="post">
+    <input asp-for="Email" />
+    <span asp-validation-for="Email"></span><br>
+    <input type="submit">
+</form>
+
+@section scripts{
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/lib/jquery-ajax-unobtrusive/dist/jquery.unobtrusive-ajax.min.js"></script>
+}
+```
+
+The form has its method set to post, which will result in a request verification token being included in the rendered HTML.It also includes a validation tag helper for outputting any validation messages relating to the Email property.
+
+##### PageRemote Attribute Approach
+
+The following handler method is declared in the same Razor page:
+
+```csharp
+public JsonResult OnPostCheckEmail()
+{
+    var existingEmails = new[]{
+        "jane@test.com","claire@test.com","dave@test.com"
+    };
+    var valid = !existingEmails.Contains(Email);
+    return new JsonResult(valid);
+}
+
+```
+
+Remote validation attributes require that the validation end point returns a JSON response to indicate whether the submitted value is valid or not. Valid values are:
+
+- true
+- false
+- undefined
+- null
+- any other string
+
+The last four values indicate that validation has failed. If a string value other than the first four is returned, it is used as the error message.
+
+This example returns true if the submitted email is not one that already exists.
+
+The PageRemote attribute has the following properties:
+
+|Property|Description|
+|---|---|
+|AdditionalFields|A comma separated list of additional fields that should be included in the validation request|
+|ErrorMessage|The custom error message to be displayed in the event of validation failure|
+|ErrorMessageResourceName|The name of the resource where the error message is stored, if one is used|
+|ErrorMessageResourceType|The type of the resource used to store the error message|
+|HttpMethod|The HTTP verb to be used for the request (GET or POST).Default is GET|
+|PageHandler|The name of the handler method containing the validation, If omitted, the default handler for the HTTP verb will be used|
+|PageName|The name of the page.If omitted, the current page is used|
+
+
+Taking into account that there is a named page handler method in the current page, the PageRemote attribute is applied to the Email property as shown below:
+
+```csharp
+[PageRemote(ErrorMessage="Email Address already exists",
+        AdditionalFields="__RequestVerificationToken",
+        HttpMethod="post",
+        PageHandler="CheckEmail"
+)]
+[BindProperty]
+public string Email{get;set;}
+```
+
+The AdditionalFields property must include the request verification token because request verification takes place by default in Razor Pages.If this field is not included in a POST request, the request will fail with a 400 Bad Request status code.
+
+> 400 error codes are also returned if the property that you are trying to validate is a "nested property", e.g. the EmailAddress property of a Contact class, which is then assigned as as property of the PageModel. If you use an input tag helper to generate the form field, the name of the field that is generated is Contact.EmailAddress.The Contact prefix is also applied to ALL
+> Field listed in the AdditionalFields property, including the field containing the request verification token.As a result, the request verification token itself is not found, and request verification fails.
+
+Once this configuration has been completed, the AJAX request is made when the value of the Email input is changed:
+
+![PageRemote](assets/32.png)
+
+##### Remote Attribute Approach
+
+The following action method is declared in an MVC controller:
+
+```csharp
+public class ValidationController:Controller
+{
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public JsonResult CheckEmail(string Email)
+    {
+        var existingEmails = new[]{
+            "jane@test.com",
+            "claire@test.com",
+            "dave@test.com"
+        };
+        var valid = !existingEmails.Contains(Email);
+        return new JsonResult(valid);
+    }
+}
+```
+
+The body of the method and the return type is identical to the Razor Pages handler method example. The ValidateAntiForgeryToken attribute is optional in MVC,but recommended.
+
+The Remote attribute shares the following properties with the PageRemote attribute:
+
+- AdditionalFields
+- ErrorMessage
+- ErrorMessageResourceName
+- ErrorMessageResourceType
+- HttpMethod
+
+It has three overloads. The first takes the name of a route, the second takes the name of an action method and controller, and the third takes an area name in addition to the action and controller names.
+
+Using the second overload, this is how the Remote attribute is configured on the Email property based on the controller action above:
+
+```csharp
+[Remote(
+    "checkemail",
+    "validation",
+    ErrorMessage="Email Address already exists",
+    AddtionalFields = "__RequestVerficationToken",
+    HttpMethod="post"
+)]
+
+[BindProperty]
+public string Email{get;set;}
+```
+
+In either case, Remote or PageRemote, if no error message is provided either via the ErrorMessage or ErrorMessageResourceName properties, or in the JSON response, the default error message is "'name of property' is invalid"
+
+##### Using Resource Files For Error Messages
+
+Resource(.resx) files enable you to centralise data, making it easier to maintain. Resource files are particularly useful when used as part of a localisation strategy.Both the PageRemote and the Remote attributes provide support for error messages stored in resource files.
+
+When adding a resource file, you must change the access modifier (highlighted below) to public. Otherwise the resource will not be accessible to the Razor Pages application.
+
+![ErrorMessage](assets/33.png)
+
+This example shows a file named ErrorMessages.resx, which has been added to a folder named Resources. It has one entry with a key of "DuplicateEmail".The name of the folder becomes the namespace for the resource, so when you configure the PageRemote attribute, you can either include the namespace as part of the type:
+
+```csharp
+[PageRemote(
+    ErrorMessageResourceType = typeof(Resources.ErrorMessages),
+    ErrorMessageResourceName = nameof(Resources.ErrorMessages.DuplicateEmail), 
+    AdditionalFields = "__RequestVerificationToken", 
+    HttpMethod ="post",  
+    PageHandler ="CheckEmail"
+)]
+[BindProperty]
+public string Email{get;set;}
+```
+
+Or you can add a using directive to reference the namespace and omit it from the attribute configuration:
+
+```csharp
+using MyApp.Resources;
+...
+[PageRemote(
+    ErrorMessageResourceType = typeof(ErrorMessages),
+    ErrorMessageResourceName = nameof(ErrorMessages.DuplicateEmail), 
+    AdditionalFields = "__RequestVerificationToken", 
+    HttpMethod ="post",  
+    PageHandler ="CheckEmail"
+)]
+[BindProperty]
+public string Email { get; set; }
+```
 
 #### Model Binding
 #### State Management
