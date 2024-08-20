@@ -3397,6 +3397,207 @@ public string Email { get; set; }
 ```
 
 #### Model Binding
+
+Model Binding in Razor Pages is the process that takes values from HTTP requests and maps them to handler method parameters or PageModel properties.Model binding reduces the need for the developer to manually extract values from the request and then assign them, one by one, to variables or properties for later processing. This work is repetitive,tedious and error prone, mainly because request values are usually only exposed via string-based indexes.
+
+
+##### The Problem
+
+To illustrate the role that model binding plays, create a new Razor page with a PageModel and name it ModelBinding.cshtml. Change the code in the content page to the following:
+
+```csharp
+@page
+@model ModelBindingModel
+@{
+
+}
+
+<h3>@ViewData["confirmation"]</h3>
+
+<form class="form-horizontal" method="post">
+    <div class="form-group">
+        <label for="Name" class="col-sm-2 control-label">Name</label>
+        <div class="col-sm-10">
+            <input type="text" class="form-control" name="Name">
+        </div>
+    </div>
+
+     <div class="form-group">
+        <label for="Email" class="col-sm-2 control-label">Email</label>
+        <div class="col-sm-10">
+            <input type="text" class="form-control" name="Email">
+        </div>
+    </div>
+    <div class="form-group">
+        <div class="col-sm-offset-2 col-sm-10">
+            <button type="submit" class="btn btn-default">Register</button>
+        </div>
+    </div>
+</form>
+
+
+
+```
+
+It represents a standard HTML form accepting a name and a email address (such as might be used to capture requests for information, for example), with a confirmation message at the top of the page.When the form is completed and submitted,the values are sent in the request body in name/value pairs, where the "name" represents the name attribute of the input, and the value is what was supplied by the user.You can see this in the Network tab of your preferred browser if it supports developer tools:
+
+![formdata](assets/34.png)
+
+Add the following handler method code to the PageModel class in ModelBinding.cshtml.cs:
+
+```csharp
+public void OnPost()
+{
+    var name = Request.Form["Name"];
+    var email = Request.Form["email"];
+    ViewData["confirmation"] = $"{name}, information will be sent to {email}";
+}
+```
+
+This represents the traditional way that values in server-side code are processed in many web frameworks. The appropriate Request collection is accessed by string-based index and then values from the collection are assigned to local variables for further processing.
+
+Launch the page in a browser and enter some values into the form.Then submit it and you should see those values included in the confirmation message:
+
+![confirmationmessage](assets/35.png)
+
+This approach is sustainable for small forms, but if you are dealing with large forms, such as one representing an order for multiple items complete with shipping details, for example, the assignment code can become very tedious. And, because development tools provide no code-completion or Intellisense support for string indices, it is fairly easy to mistype Request.Form["Email"] as Request.Form["Emial"],thereby introducing a subtle but damaging bug that may be difficult to track down among 30 or 40 other form fields.
+
+##### Binding Posting Form Values To Handler Method Parameters
+
+Razor Pages provides two approaches to leveraging model binding. The first approach involves adding parameters to the handler method.The parameters are named after the form fields, and given an appropriate type for the expected data.To see this approach in action, remove the assignment code in the OnPost handler method and add two parameters to the method:
+
+```csharp
+public void OnPost(string name,string email)
+{
+    ViewData["confirmation"] = $"{name}, information will be sent to {email}";
+}
+```
+
+When the form is posted, the Razor Pages framework calls the OnPost method and sees that it has two parameters. It extracts posted form values that match the names of the parameters and automatically assigned the values from the form to the parameters if the value can be converted to the type represented by the parameter.There is no need for any assignment code.
+
+##### Binding Posted Form Values to PageModel Properties
+
+The previous approach is suitable when the values are not needed outside of the handler method to which the parameters belong.The second approach is more suitable if you need to access the values outside of the handler method (for display on the page or binding to tag helpers, for example), or if you prefer to work in a strongly typed manner within the Razor content page.This approach involves adding public properties to the PageModel (or to a @functions block if you don't want to use the PageModel approach) and then decorating them with the BindProperty attribute.To try this out, alter the PageModel code as follows:
+
+```csharp
+public class ModelBindingModel : PageModel
+{
+    [BindProperty]
+    public string Name {get;set;}
+    [BindProperty]
+    public string Email {get;set;}
+
+    public void OnGet()
+    {
+
+    }
+
+    public void OnPost()
+    {
+        ViewData["confirmation"]= $"{Name}, information will be sent to {Email}";
+    }
+}
+```
+
+From version 2.1 of ASP.NET Core, you can add the new [BindProperties] attribute to the PageModel class rather than applying [BindProperty] to individual properties, which results in all the public properties in the PageModel taking part in model binding:
+
+```csharp
+[BindProperties]
+public class ModelBindingModel : PageModel
+{
+    public string Name {get;set;}
+    public string Email {get;set;}
+
+    public void OnGet()
+    {
+
+    }
+
+    public void OnPost()
+    {
+        ViewData["confirmation"] = $"{Name},information will be sent to {Email}";
+    }
+}
+```
+
+When doing this, take care to note the advice about preventing over-posting attacks below.
+
+Note that the case of the variables in the format string has altered to refer to the public property names. Model binding itself is not case sensitive. It performs case-insensitive matches between the names of incoming values and the names or parameters or properties that it attempts to bind the values to.Now when you run the page, the result is exactly the same as before:
+
+![registermessage](assets/36.png)
+
+
+##### Binding Data From GET Requests
+
+The same options apply if you want to bind data from GET requests (which is appended to the URL as a query string). Binding to handler method parameters is automatic and requires no additional confirmation. However, by default, only values that form part of a POST request are considered for modeling binding when you use the BindProperty attribute.The BindProperty attribute has a property called SupportsGet, which is false by default.You have to set this to true to opt in to model binding to PageModel properties on GET requests:
+
+```csharp
+public class ModelBindingModel:PageModel
+{
+    [BindProperty(SupportsGet=true)]
+    public string Email{get;set;}
+    [BindProperty(SupportsGet=true)]
+    public string Password{get;set;}
+
+
+    public void OnGet()
+    {
+        ViewData["welcome"] = $"Welcome {Email}";
+    }
+}
+```
+
+> **Note**
+> Obviously it is not a good idea to create a login form that supports GET. Form values will appear in the URL, which could well be a security breach.
+
+
+##### Binding Route Data
+
+So far the examples have featured how model binding works with form values.It also works with Route Data, which is part of the routing system that Razor Pages uses.To test this, alter the code in ModelBinding.cshtml as follows:
+
+```csharp
+@page "{id}"
+@model ModelBindingModel
+@{
+
+}
+
+<h3>Id = @ViewData["id"]</h3>
+```
+
+A route parameter named id has been added and the content of the h3 heading has been altered to print the value of a ViewData entry named id.
+
+Next,remove the public properties from the PageModel and add a parameter named id of type int to the OnGet handler method, and in the body of the method, assign its value to ViewData:
+
+```csharp
+public clalss ModelBindingModel : PageModel
+{
+    public void OnGet(int id)
+    {
+        ViewData["id"] = id;
+    }
+}
+```
+
+Once again, model binding takes care of assigning the value in the route to the handler method parameter.This also works for public properties on the PageModel in exactly the same way as for form values:
+
+```csharp
+public class ModelBindingModel : PageModel
+{
+    [BindProperty(SupportsGet=true)]
+    public int Id {get;set;}
+    public  void OnGet()
+    {
+        ViewData["id"] = Id;
+    }
+}
+```
+
+##### Binding Complex Objects
+
+Up to this point, you have seen how to use model binding to populate simple properties. As the number of form fields grows, the PageModel class will start to creak with either a long list of properties, all decorated with the BindProperty attribute, or a large number of parameters applied to a handler method. Fortunately, model binding also works with complex objects.So the properties to bound can be wrapped in an object that can be exposed as a property of the PageModel or a parameter for the handler method.Here's a class named Login that represents the form fields from the previous examples:
+
+
 #### State Management
 #### Cache
 #### Managing Security With ASP.NET Identity
