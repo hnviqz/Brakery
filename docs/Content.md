@@ -4407,8 +4407,407 @@ A number of extension methods on the MemoryCache class are made available to sim
 |Get|object|Gets the item with the specified key|
 |Get\<TItem\>|TItem|Gets the item with the specified key and attempts to cast it to the specified type|
 |GetOrCreate\<TItem\>|TItem|If the item doesn't exist in the cache,this method will add it|
+|Task\<TItem\> GetOrCreateAsync|Task<TItem>|Async version of above|
+|Set\<TItem\>|TItem|Also has 4 overloads that allow various options to be set|
+|TryGetValue\<TItem\>|bool|Generic version of the interface method|
+
+##### Setting values
+
+The simplest way to add an entry to the cache is to use the Set<TItem> method:
+
+```csharp
+var dt = DateTime.Now;
+_cache.Set<DateTime>("Time",dt);
+```
+
+More commonly, you will omit the type parameter because it can be inferred from the type that's passed into the Set method:
+
+```csharp
+var dt=DateTime.Now;
+_cache.Set("Time",dt);
+```
+
+Overloads of the Set<TItem> method enable you to specify the expiration rules of an item, or a collection of properties wrapped as a MemoryCacheEntryOptions object.These will be examined further when looking at the CacheEntry object's properties.
+
+##### Getting values
+
+Both the Get and Get<Item> methods attempt to retrieve a cache entry by the specified key:
+
+```csharp
+var myEntry = _cache.Get("myKey");
+var myEntry = _cache.Get<DateTime>("myKey");
+```
+
+The first option returns an item of type object or its default value (null) if no entry with the specified key exists.The second option returns an item of the type specified in the TItem parameter(DateTime in this example) or the default value of TItem if the key doesn't exist.If the cache entry cannot be converted to the type specified by the TItem parameter,an InvalidCastException will be generated.
+
+The TryGetValue method returns a bool to indicate whether retrieval from the cache is successful.The method takes an out  parameter for capturing the retrieved value in the event of success:
+
+```csharp
+DateTime dt;
+if(_cache.TryGetValue("myKey",out dt))
+{
+    // the cache entry has been retrieved
+}
+```
+
+This method will also generate an InvalidCastException if the item cannot be cast to the specified type.The type parameter can be omitted because the type is inferred from the out parameter.
+
+Finally, the GetOrCreate method will add an entry if one doesn't exist for the specified key:
+
+```csharp
+var o = _cache.GetOrCreate("myKey",entry=>{
+    return DateTime.Now;
+});
+```
+
+In this case o will either contain the value of the cached item with a key of myKey,or if one doesn't exist,the value of o will be DateTime.Now which will be added to the cache with the specified key.
+
+##### Removing items
+
+Items are explicitly removed from the cache by the Remove method which takes the key as a parameter:
+
+```csharp
+_cache.Remove("myKey");
+```
+
+##### CacheEntry Properties
+
+The following table details the properties of the CacheEntry class which represents an item stored in the cache:
+
+|Property|Data Type|Description|
+|AbsoluteExpiration|DateTimeOffset|Gets or sets an absolute expiration date for the cache entry|
+|AbsoluteExpirationRelativeToNow|TimeSpan|Gets or sets an absolute expiration time,relative to now|
+|SlidingExpiration|TimeSpan|Gets or sets how long a cache entry can be inactive(e.g. not accessed) before it will be removed.This will not extend the entry lifetime beyond the absolute expiration (if set)|
+|Key|object|Readonly - gets the key of the item|
+|Value|object|Gets or sets the value of the item|
+|ExpirationTokens|IList<IChangeToken>|Gets the IChangeToken instances which cause the cache entry to expire.|
+|Priority|CacheItemPriority|Gets or sets the priority for keeping the cache entry in the cache during a memory pressure triggered cleanup.Defaults to CacheItemPriority.Normal.Other options are High,Low and NeverRemove|
+|Size|long||
+|PostEvictionCallBack|IList\<PostEvictionCallbackRegistration\>|Gets or sets the callbacks that will be fired after the cache entry is evicted from the cache.|
 
 
+##### Managing Expiration of Cache Entries
+
+Several properties relate to the expiry time of a cache entry.If no value is set for these,the entry will only be removed from the cache if a cleanup takes place that is triggered by memory pressure,or if the process that the application is running within is stoped from some reason (App pool recycle,server shutdown).You should therefore code defensively when use the memory cache.You cannot safely assume that an entry exists,even though you wrote code to add it and tested that the code gets called.
+
+The AbsoluteExpiration property enables you to set the actual time that an item should expire The following example sets the entry to expire just before midnight on News Year's Eve,2018 regardless when it was added:
+
+```csharp
+using var cacheEntry = _cache.CreateEntry("MyKey");
+
+cacheItem.AbsoluteExpiration = new DateTimeOffset(new DateTime(2018,12,31,23,59,59));
+```
+
+Rather than specifying that an entry expires at a particular point in time,you may want to specify a duration,such as 20 minutes from the time that the item is added to the cache.You do this by setting a value for the AbsoluteExpirationRelativeToNow property:
+
+```csharp
+using var cacheEntry = _cache.CreateEntry("MyKey");
+cacheItem.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(20);
+```
+
+If both of these properties are set,the item's expiry will be determined by whichever occurs first.
+
+The SlidingExpiration properties provides a means to expire infrequently accessed items after a specified period of inactivity:
+
+```csharp
+using var cacheEntry = _cache.CreateEntry("MyKey");
+cacheItem.SlidingExpiration = TimeSpan.FromMinutes(20);
+```
+
+This particular item will expire from the cache if it has not been accessed within 20 minutes of it being set or last accessed.Each time it is accessed,the 20 minute time limit will be reset.This will continue to happen until the item is explicitly removed by the Remove method,evicted as a result of memory pressure, or the item has an absolute expiry time set and that time is reached.
+
+You can also set these options via extension methods on an instance of the MemoryCacheEntryOptions class:
+
+```csharp
+var dt = DateTime.Now;
+var options = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromMinutes(20));
+_cache.Set("Time",dt,options);
+```
+
+The extension methods include:
+
+- AddExpirationToken
+- RegisterPostEvictionCallback
+- SetAbsoluteExpiration
+- SetPriority
+- SetSize
+- SetSlidingExpiration
+
+##### Change Tokens and Dependencies
+
+The expiration of items does not need to be set to a specific time.Items can also be expired from the cache as a result of a dependency,such as a database entry,file contents or other source changing - even another cache entry.Dependencies are registered using objects that implement the IChangeToken interface.For more information on using Change Tokens, see Detect changes with change tokens in ASP.NET Core.Tokens are added to the item's ExpirationTokens property.In the next code block,the FileProvider's Watch method returns an IChangeToken,which is used to manage the eviction the cache item in the event of changes to the watched file:
+
+```csharp
+var fileInfo = new FileInfo(@"d:\content\example.txt");
+var fileProvider = new PhysicalFileProvider(fileInfo.DirectoryName);
+var changeToken = fileProvider.Watch(fileInfo.Name);
+cacheItem.ExpirationTokens.Add(changeToken);
+```
+
+##### Introduction to Identity in Razor Pages
+
+Razor Pages uses ASP.NET Identity as its default membership and authentication system.In this section you will explore the various parts of ASP.NET Identity as it relates to Razor Pages, starting with an overview of this files generated as part of the project templates.
+
+If you are using Visual Studio,you can specify that your Razor Pages project uses an authentication system at the point where you specify the type of project to create.
+
+![identity](assets/39.png)
+
+Click the Change Authentication button and then specify that you wish to use Individual user accounts and that you wish to store the user data in your own database;
+
+![individual user accounts](assets/40.png)
+
+Having created the project,build it to ensure that all required packages are restored.
+
+If you prefer to use the command line tools to generate the template files,navigate to the folder that you want to use for the project and use the following command:
+
+`dotnet new razor --auth individaul`
+
+The main difference between the two approaches to project creation is that the Visual Studio template results in an application that uses Sql Server localdb as a datastore,whereas the command line option uses the cross-platform SQLite database.
+
+ASP.NET Identity uses Entity Framework Core for data access.EF Core uses migrations to keep the database in sync with the model.The first migration is already scripted and generates the schema for ASP.NET Identity.The SQLite version has the first migration already applied,so you will find a file named app.db in the project root.You need to run the update-database command to execute the first migration if you are using the Visual Studio template.In both cases the schema of the database is the same:
+
+![sqlserver](assets/41.png)
+
+![app.db](assets/42.png)
+
+##### Project Overview
+
+The project includes a number of folders and files over and above those found in a standard template:
+
+![project](assets/43.png)
+
+The Data folder contains the files required by Entity Framework Core,including the migrations and DbContext class.
+
+The Services folder contains and interface for an EmailSender class,and an implementation that has one non-operational method,SendEmailAsync.You need to provide your own implementation if you plan to use this class.
+
+The Extensions folder contains a couple of useful extension methods that are used for creating confirmation links in emails and for determining the correct URL to redirect to where necessary.
+
+The Account folder within the Pages folder contains a number of Razor Page files designed for managing the most common authentication-related tasks and serve as a reasonable starting point.
+
+Finally，the Controllers folder contains code for an MVC controller-AccountController,which has been included to cater for logging out.It has one action method - Logout,which signs the user out,logs the action and then redirects to the home page.Use of an MVC controller for this process is deliberate - since the logging out process has no associated UI,it was considered unnecessary to use a Razor Page,whose purpose afterall is to generate a UI.
+
+##### Changing the Logout contrller to a Razor page
+
+If you prefer not to have MVC controllers in your application for any reason,you can change the logging out process to use a Razor Page instead.
+
+1. Add a new Razor page called Logout.cshtml to the Pages folder.
+2. Add layout=null, to the code block in the .cshtml file 
+3. Change the code in the LogoutModel file to the following:
+
+```csharp
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Logging;
+using RazorPagesIdentity.Data;
+using System.Threading.Tasks;
+namespace RazorPagesIdentity.Pages
+{
+    public class LogoutModel : PageModel
+    {
+        private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly ILogger _logger;
+        public LogoutModel(SignInManager<ApplicationUser> signInManager, ILogger<LogoutModel> logger)
+        {
+            _signInManager = signInManager;
+            _logger = logger;
+        }
+        public async Task<IActionResult> OnPost()
+        {
+            await _signInManager.SignOutAsync();
+            _logger.LogInformation("User logged out.");
+            return RedirectToPage("/Index");
+        }
+    }
+}
+```
+4. Open the LoginPartial.cshtml file.Remove the following attributes from the form tag helper:
+
+```html
+asp-controller="Accout" asp-action="Logout" method="post"
+```
+
+5. Replace them with an asp-page attribute as follows:
+```html
+asp-page="Logout"
+```
+The opening tag should now look like this:
+```html
+<form asp-page="Logout" id="logoutForm" class="navbar-right">
+```
+It is now safe to delete the Controllers folder and all of its contents,but before you do,it is worth taking a look at the content of the AccountController and comparing it with the LogoutModel class file content. They are almost identical.
+
+##### Customising Identity In Razor Pages
+
+The code for managing authentication in a Razor Pages application that is provided by the standard project template is a good starting point.However,changes are that you want to customise it to fit your own application needs.This article looks at the most common customisation requirements.
+
+##### Customising the Registration
+
+A user in ASP.NET Identity is represented by the ApplicationUser class.It has very few properties by default - UserName and Email.The registration form in the template takes the value provided in the Email input and applies it to both the UserName and Email properties.The following steps illustrate how to enable a user to provide a different value for their username:
+
+1. Add a new property to the InputModel class in the Register.cshtml.cs file for the user name:
+
+```csharp
+public class InputModel
+{
+    [Required]
+    [Display(Name="User Name")]
+    public string UserName{get;set;}
+}
+```
+
+2. Change the code in the OnPostAsync method so that the value for the user name is assigned from the new property:
+
+```csharp
+if(ModelState.IsValid)
+{
+    var user = new ApplicationUser{UserName=Input.UserName,Email = Input.Email};
+}
+```
+
+3. Change the  registration form in the Register.cshtml file to accommodate the new property:
+
+```html
+<form asp-route-returnUrl="@Model.ReturnUrl" method="post">
+    <h4>Create a new account.</h4>
+    <hr />
+    <div asp-validation-summary="All" class="text-danger"></div>
+    <div class="form-group">
+        <label asp-for="Input.UserName"></label>
+        <input asp-for="Input.UserName" class="form-control" />
+        <span asp-validation-for="Input.UserName" class="text-danger"></span>
+    </div>
+</form>
+```
+
+##### Adding properties to the ApplicationUser
+
+You property want to capture more information from the user at the point of registration that just their email address and username.You do this by adding  properties to the ApplicationUser class for storing the additional values,and then use Entity Framework Core Migrations to apply the changes to the database so that the additional information can be stored.The following steps show how to add a first name,last name and date of birth fields:
+
+1. Add two string properties and a DateTime property to the ApplicationUser class:
+
+```csharp
+public class ApplicationUser:IdentityUser
+{
+    public string FirstName{get;set;}
+    public string LastName{get;set;}
+    public DateTime BirthDate{get;set;}
+}
+```
+
+2. Open the Package Manager Console and type the following command
+
+`PM> add-migration AddedFirstNameLastNameBirthDate`
+
+This will create a migration that, when applied, will modify the schema of the AspNetUsers table in the database to accommodate the additional data related to the properties that have been added.
+
+3. Apply the migration by typing the following command in the Package Manager Console:
+
+`PM> update-database`
+
+4. Add Corresponding properties to the InputModel class (Register.cshtml.cs) together with appropiate annotations for display:
+
+```csharp
+[Display(Name="First Name")]
+public string FirstName {get;set;}
+[Display(Name="Last Name")]
+public string LastName {get;set;}
+[Display(Name="Date of birth")]
+public DateTime BirthDate{get;set;}
+```
+
+5. Change the code in the OnPostAsync handler method in the Register.cshtml.cs file to assign values from the input class to the new ApplicationUser properties:
+
+```csharp
+if(ModelState.IsValid)
+{
+    var user = new ApplicationUser{
+        UserName = Input.UserName,
+        Email = Input.Email,
+        FirstName = Input.FirstName,
+        LastName = Input.LastName,
+        BirthDate = Input.BirthDate
+    };
+}
+```
+
+6. Finally, add appropriate additional fields to the form in Register.cshtml
+
+```html
+<div class="form-group">
+
+    <label asp-for="Input.FirstName"></label>
+    <input asp-for="Input.FirstName" class="form-control" />
+    <span asp-validation-for="Input.FirstName" class="text-danger">
+</div>
+<div class="form-group">
+    <label asp-for="Input.LastName"></label>
+    <input asp-for="Input.LastName" class="form-control" />
+    <span asp-validation-for="Input.LastName" class="text-danger" ></span>
+</div>
+<div class="form-group">
+    <label asp-for="Input.BirthDate"></label>
+    <input asp-for="Input.BirthDate" class="form-control" />
+    <span asp-validation-for="Input.BirthDate" class="text-danger"></span>
+</div>
+```
+
+##### Customising the Password Options
+
+The following default password requirements may not suit your purposes:
+
+- The Password must be at least 6 and at max 100 characters long.
+- Passwords must have at least one non alphanumeric character.
+- Passwords must have at least one lowercase('a'-'z').
+- Passwords must have at least one uppercase('A'-'Z').
+
+You can change these defaults via the Razor Pages options in the ConfigureServices method of the Startup class.Most of the options are booleans,requiring a true or false value.You can also specify a minimum length and a miunimum number of unique characters.The option names are self-explanatory:
+
+```csharp
+services.AddIdentity<ApplicationUser,IdentityRole>(options=>
+{
+    options.Password.RequireDigit = true;
+    options.Password.RequireLowercase = true;
+    options.Password.RequireUppercase = true;
+    options.Password.RequiredLength = 6;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequiredUniqueChars = 6;
+}).AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders();
+```
+
+##### Customising the resources that require authentication
+
+Finally,I look at how to protect resources from non-authenticated users.The default template prevents users from accessing the contents of the Pages/Account/Manage folder,and the Logout action on the AccountController,These are protected by conventions established in the ConfigureServices method of the Startup class:
+
+
+```csharp
+services.AddMvc().AddRazorPagesOptions(Options=>
+{
+    options.Conventions.AuthorizeFolder("/Account/Manage");
+    options.Conventions.AuthorizePage("/Account/Logout");
+});
+```
+
+You can protect other resources by adding additional conventions using the AuthorizeFolder method to restrict access to a folder and all of its contents,or the AuthorizePage method to restrict access on a page-by-page basic.Alternatively,you can use the AuthorizeAttribute to protect a specific page.You do this by decorating the page model class for the page with [Authorize]:
+
+```csharp
+[Authorize]
+public class AboutModel:PageModel
+{
+
+}
+```
+
+Customising the Login page
+
+The path for default login page is /Account/Login.This is controlled by one of the ApplicationCookie options,which can be changed in ConfigureServices as follows:
+
+```csharp
+services.ConfigureApplicationCookies(options=>{
+    options.LoginPath = "/Admin/Login";
+});
+```
 
 #### Managing Security With ASP.NET Identity
 #### Using Ajax
