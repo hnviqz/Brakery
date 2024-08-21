@@ -3597,6 +3597,677 @@ public class ModelBindingModel : PageModel
 
 Up to this point, you have seen how to use model binding to populate simple properties. As the number of form fields grows, the PageModel class will start to creak with either a long list of properties, all decorated with the BindProperty attribute, or a large number of parameters applied to a handler method. Fortunately, model binding also works with complex objects.So the properties to bound can be wrapped in an object that can be exposed as a property of the PageModel or a parameter for the handler method.Here's a class named Login that represents the form fields from the previous examples:
 
+```csharp
+public class Login
+{
+    public string Email {get;set;}
+    public string Password {get;set;}
+
+    public void OnGet()
+    {
+
+    }
+
+    public void OnPost()
+    {
+        ViewData["welcome"] = $"Welcome {Login.Email}";
+    }
+}
+```
+
+Or it can be applied as a parameter to the OnPost method depending on your usage needs:
+
+```csharp
+public class ModelBindingModel : PageModel
+{
+    public void OnGet()
+    {
+
+    }
+
+    public void OnPost(Login login)
+    {
+        ViewData["welcome"] = $"Welcome {login.Email}";
+    }
+}
+```
+
+The form field names have to be altered to reflect the fact that the property has changed:
+
+```html
+<input type="text" class="form-control" name="Login.Email">
+```
+
+##### Binding Complex Objects In A Get Request
+
+Model binding in GET requests works with complex objects decorated with the BindProperty attribute as long as the SupportsGet parameter is set to true, just as with simple types.Or you can add the type as a handler method parameter:
+
+```csharp
+public class ModelBindingModel:PageModel
+{
+    public void OnGet(Login login)
+    {
+        ViewData["welcome"] = $"Welcome {login.Email}";
+    }
+}
+```
+
+##### Binding Simple Collections
+
+The next code example shows a form where the user is allowed to select more than one option. In this case, the user is invited to specify which film categories they like:
+
+```html
+<form class="form-horizontal" method="post">
+    <div class="form-group">
+        <label for="CategoryId" class="col-sm-2 control-label">Which types of film do you like? (Tick all that apply)</label>
+        <div class="col-sm-10">
+            <input type="checkbox" name="CategoryId" value="1">Factual<br />
+            <input type="checkbox" name="CategoryId" value="2">Horror<br />
+            <input type="checkbox" name="CategoryId" value="3">Historical <br />
+            <input type="checkbox" name="CategoryId" value="4"> SciFi<br />
+            <input type="checkbox" name="CategoryId" value="5"> Comedy<br />
+            <input type="checkbox" name="CategoryId" value="6"> Fantasy<br />
+        </div>
+    </div>
+    <div class="form-group">
+        <div class="col-sm-offset-2 col-sm-10">
+            <button type="submit" class="btn btn-default">Submit</button>
+        </div>
+    </div>
+
+</form>
+```
+
+
+The form includes multiple checkboxes, each with the same name attribute value:CategoryId. When the form is submitted, the posted values look something like this (depending on the selection made):
+
+```
+CategoryId=1&CategoryId=3&CategoryId=6
+```
+
+ASP.NET Core will take those values and transform them into a StringValues type, which represents zero/null, one, or many strings. This can be converted by the model binder to an array of any type that the values can be converted to - strings or integers will work in this example.The code for binding to a handler method parameter and passing the posted values to ViewData looks like this:
+
+```csharp
+public void OnPost(int[] categoryId)
+{
+    ViewData["categoryId"] = categoryId;
+}
+```
+If there are no values posted, categoryId will be null as will ViewData["categoryId"]. Therefore you must test for null (as well as casting to the relevant type):
+
+```html
+@if (ViewData["categoryId"]!=null)
+{
+    <h3>You selected the following categories: @string.Json(",",(int[])ViewData["categoryId"])</h3>
+}
+```
+
+If you choose to bind to a PageModel property, you can initiate the collection as part of its declaration:
+
+```csharp
+public class ModelBindingModel : PageModel
+{
+    public int[] CategoryId {get;set;} = new int[0];
+    public void OnPost()
+    {
+
+    }
+}
+```
+
+Then you can use Any() to check whether the collection has been populated:
+
+```csharp
+@if(Model.CategoryId.Any())
+{
+    <h3>You selected the following categories: @string.Json(",",Model.CategoryId)</h3>
+}
+```
+
+##### Binding Complex Collections
+
+The model binder also supports binding to collections of complex objects.The following class represents a contact:
+
+```csharp
+public class Contact
+{
+    public int ContactId{get;set;}
+    public string FirstName{get;set;}
+    public string LastName{get;set;}
+    public string Email{get;set;}
+}
+```
+
+Here is a form that enables a user to submit multiple contracts in one go:
+
+```html
+<form class="form-horizontal" method="post">
+    <table class="table table-striped">
+        <tr>
+            <th>First Name</th>
+            <th>Last Name</th>
+            <th>Email</th>
+        </tr>
+        @for(var i=0;i<5;i++)
+        {
+            <tr>
+                <td><input type="text" name="[@i].FirstName" /></td>
+                <td><input type="text" name="[@i].LastName" /></td>
+                <td><input type="text" name="[@i].Email" /></td>
+            </tr>
+        }
+    </table>
+    <div>
+        <div class="form-group">
+            <div class="col-sm-offset-2 col-sm-10">
+                <button type="submit" class="btn btn-default">Submit</button>
+            </div>
+        </div>
+    </div>
+</form>
+```
+
+![multiplecontract](assets/37.png)
+
+The model binder will bind the posted values to a collection of Contact objects, which is usually represented by a List<T>.This can be a property of the PageModel:
+
+```csharp
+[BindProperty]
+public List<Contact> Contacts{get;set;}
+```
+
+Or it can be a handler method parameter:
+
+```csharp
+public void OnPost(List<Contract> contacts)
+{
+
+}
+```
+
+This approach to complex object binding makes use of a sequential index.The index must start at 0, and it must be sequential, as its name suggests.There must be no gaps.The index is placed in square brackets and added to the form field's name attribute e.g [0].FirstName. The code below shows the generated HTML for the first 2 rows in the form:
+
+```html
+<tr>
+    <td>
+        <input type="text" name="[0].FirstName" />
+    </td>
+    <td>
+        <input type="text" name="[0].LastName" />
+    </td>
+    <td>
+        <input type="text" name="[0].Email" />
+    </td>
+</tr>
+<tr>
+    <td>
+        <input type="text" name="[1].FirstName" />
+    </td>
+    <td>
+        <input type="text" name="[1].LastName" />
+    </td>
+    <td>
+        <input type="text" name="[1].Email" />
+    </td>
+</tr>
+```
+
+In this example, for format that is used for the form field names is [index].propertyname.The process also works with parametername[index].propertyname if you prefex e.g.:
+
+```html
+@for(var i=0;i < 5; i++)
+{
+    <tr>
+        <td>
+            <input type="text" name="Contacts[@i].FirstName" />
+        </td>
+        <td>
+            <input type="text" name="Contacts[@i].LastName" />
+        </td>
+        <td>
+            <input type="text" name="Contacts[@i].Email" />
+        </td>
+    </tr>
+}
+```
+
+When the form is submitted, a collection of five (in this example) Contact objects is instantiated and populated with the posted values.If the user only provides values for the first three contacts,the final two will have have their properties set to the default for the type - null for strings.
+
+The same approach works when you bind to a PageModel property.However,you can also use the asp-for attribute of an input tag helper:
+
+```html
+@for (var i = 0; i < 5; i++)
+{
+    <tr>
+        <td>
+            <input type="text" asp-for="Contacts[i].FirstName" />
+        </td>
+        <td>
+            <input type="text" asp-for="Contacts[i].LastName" />
+        </td>
+        <td>
+            <input type="text" asp-for="Contacts[i].Email" />
+        </td>
+    </tr>
+}
+```
+
+```csharp
+public class ModelBindingModel : PageModel
+{
+    [BindProperty]
+    public List<Contact> Contacts{get;set;}
+
+    public void OnPost()
+    {
+
+    }
+}
+```
+
+You can also use an explicit index.This approach requires an additional hidden field for each item, named [property].Index (the explicit index).The index can be any value that uniquely identifies a data item.This approach is more suited to forms designed for editing existing values, where the primary key of each item is often used as the index value.
+
+In this example, ContactId - the key value for the Contact entity - is used as the index value:
+
+```html
+<form method="post">
+    <table class="table">
+        @foreach (var contact in Model.Contacts)
+        {
+            <tr>
+                <td>
+                    <input type="hidden" name="Contacts.Index" value="@contact.ContactId" />
+                    <input type="hidden" name="Contacts[@contact.ContactId].ContactId" value="@contact.ContactId" />
+                    @contact.ContactId
+                </td>
+                <td><input name="Contacts[@contact.ContactId].FirstName" value="@contact.FirstName" /></td>
+                <td><input name="Contacts[@contact.ContactId].LastName" value="@contact.LastName" /></td>
+                <td><input name="Contacts[@contact.ContactId].Email" value="@contact.Email" /></td>
+            </tr>
+        }
+    </table>
+    <button>Update</button>
+</form>
+
+```
+
+This is how one row of data might render,given some actual values:
+
+```html
+<tr>
+    <td>
+        <input type="hidden" name="Contacts.Index" value="43907" />
+        <input type="hidden" name="Contacts[43907].ContactId" value="43907" />
+        43907
+    </td>
+    <td><input name="Contacts[43907].FirstName" value="Penny" /></td>
+    <td><input name="Contacts[43907].LastName" value="Farthing" /></td>
+    <td><input name="Contacts[43907].Email" value="penny@gmail.com" /></td>
+</tr>
+```
+
+The model binders uses the Contacts.Index field value to group other values.
+
+##### Binding Related Collections to a Complex Object
+
+Sometimes you may want to create a form that enables the creation of a parent object along with one or more items belonging to a collection property of the parent.One of the easier examples of this to understand is an order and its items.The following simple model illustrates this relationship:
+
+```csharp
+public class Order
+{
+    public int OrderId{get;set;}
+    public string Customer{get;set;}
+    public List<OrderItem> OrderItems {get;set;}
+}
+
+public class OrderItem
+{
+    public int OrderItemId{get;set;}
+    public string Item {get;set;}
+    public decimal Price{get;set;}
+}
+```
+
+Here's the PageModel for a Create Page:
+
+```html
+@page
+@model CreateModel
+@{
+
+}
+
+<form method="post">
+    <input asp-for="Order.Customer" /><br />
+    <input asp-for="Order.OrderItems[0].Item" /><br>
+    <input asp-for="Order.OrderItems[0].Price" /><br>
+    <input type="submit"/>
+</form>
+```
+
+Finally, the PageModel with an Order property decorated with the [BindProperty] attribute:
+
+```csharp
+public class CreateModel : PageModel
+{
+    [BindProperty]
+    public Order Order{get;set;}
+
+    public void OnPost()
+    {
+
+    }
+}
+```
+
+The indexer is applied to the OrderItems property of the Order. When the form is posted back, the model binder will create an Order object, and an OrderItem object, which will be assigned to the OrderItems collection of the Order:
+
+![order](assets/38.png)
+
+##### Binding to Arbitrary Keys
+
+When binding posted values, ASP.NET Core matches the names of the form or query string keys in the request to parameter names or the names of public properties decorated with the BindProperty attribute. A form field with a name attribute of person.firstname will be bound to Person.FirstName.Sometimes, you might want to override the default matching.This is possible by specifying a value for the Name property of the BindProperty attribute as in the following code example:
+
+```csharp
+public class Person
+{
+    [BindProperty(Name="first-name")]
+    public string FirstName{get;set;}
+    public string LastName{get;set;}
+}
+```
+
+In a PageModel, the BindProperty attribute is applied to an instance of the Person class:
+
+```csharp
+[BindProperty]
+public Person Person{get;set;}
+```
+
+And in the form, the name attributes on the inputs are as follows:
+
+```html
+<form method="post">
+    Fist Name: <input name="first-name" /><br>
+    Last Name: <input name="person.lastname" /><br>
+    <button>Submit</button>
+</form>
+```
+
+##### Preventing Overposting or Mass Assigment Attacks
+
+When you add the BindProperty attribute to a class, all properties in that class are automatically included in model binding. That may not be what is needed, particularly when working with Entity Framework model classes.
+
+For example, you might choose to have an IsDeleted property on you entities to allow "soft deletes" (i.e. a flag that specifies the status of a record rather than the permanent - and irrevocable - removal of the record from the database). Only admins are allowed to set this property so you don't include an IsDeleted field in the edit form for normal users:
+
+```html
+<form class="form-horizontal" method="post">
+    <input type="hidden" asp-for="ContactId">
+    <div class="form-group">
+        <label asp-for="Name" class="col-sm-2 control-label"></label>
+        <div class="col-sm-10">
+            <input type="text" class="form-control" asp-for="Name">
+        </div>
+    </div>
+    <div class="form-group">
+        <label asp-for="Email" class="col-sm-2 control-label"></label>
+        <div class="col-sm-10">
+            <input type="text" class="form-control" asp-for="Email">
+        </div>
+    </div>
+    <div class="form-group">
+        <div class="col-sm-offset-2 col-sm-10">
+            <button type="submit" class="btn btn-default">Edit</button>
+        </div>
+    </div>
+</form>
+```
+
+However, it is trivial for a reasonably competent HTML -savvy user to manipulate the form (using the standard browser developer tools, for example) to include an IsDeleted property and to submit that to the server.The value will be processed as part of a legitimate edit operation.This is known as a mass assignment or an over posting attack.
+
+For this reason, you are advised to be careful when using model binding with complex types.If they include properties that should not be set by an unauthorised user, you should only include the properties that can be set, either as individual properties on the PageMoel, or wrapped in a ViewModel class.
+
+
+##### Implementing a Custom Model Binder In Razor Pages
+
+The default model binder in Razor Pages is sufficient for most use cases,but sometimes you might need to implement your own model binding solution.The following example demonstrates how to devise and register a model binder to bind values from an week input to a DateTime value.
+
+The week input enables the user to select a week of the year in browsers where it is supported:
+
+<input type="week" />
+
+The format of the values that the week input works with are defined in ISO 8601 and take the form yyyy-Www, where yyyy represents the year, -W is literal and ww represents the week of the year. The existing DateTime model binder is unable to bind a string in this format to a DateTime.You could manually parse the value that comes from the week input and assign it to a DateTime within the OnPost handler. However, Creating a custom model binder is a better solution.
+
+##### Model Binder Basics
+
+Model  binders implement the IModelBinder interface, which contains one member:
+
+```csharp
+Task BindModelAsync(ModelBindingContext bindingContext)
+```
+
+It is within this method that you attempt to process incoming values and assign them to model properties or parameters. Once you have created your custom model binder, you either apply it to a specific property through the ModelBinder attribute, or you can register it globally using a ModelBinderProvider.
+
+##### The WeekOfYear ModelBinder
+
+To resolve the issue with binding the week input type value to a DateTime type, the approach using the ModelBinder attribute is simplest.The following code for a custom WeekOfYearModelBinder is based on the source ode for the existing DateTimeModelBinder:
+
+```csharp
+public class WeekOfYearModelBinder : IModelBinder
+{
+    public Task BindModelAsync(ModelBindingContext bindingContext)
+    {
+        if (bindingContext == null)
+        {
+            throw new ArgumentNullException(nameof(bindingContext));
+        }
+ 
+        var modelName = bindingContext.ModelName;
+        var valueProviderResult = bindingContext.ValueProvider.GetValue(modelName);
+        if (valueProviderResult == ValueProviderResult.None)
+        {
+            return Task.CompletedTask;
+        }
+ 
+        var modelState = bindingContext.ModelState;
+        modelState.SetModelValue(modelName, valueProviderResult);
+ 
+        var metadata = bindingContext.ModelMetadata;
+        var type = metadata.UnderlyingOrModelType;
+        try
+        {
+            var value = valueProviderResult.FirstValue;
+ 
+            object model;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                model = null;
+            }
+            else if (type == typeof(DateTime))
+            {
+                var week = value.Split("-W");
+                model = ISOWeek.ToDateTime(Convert.ToInt32(week[0]), Convert.ToInt32(week[1]), DayOfWeek.Monday);
+            }
+            else
+            {
+                throw new NotSupportedException();
+            }
+ 
+            if (model == null && !metadata.IsReferenceOrNullableType)
+            {
+                modelState.TryAddModelError(
+                    modelName,
+                    metadata.ModelBindingMessageProvider.ValueMustNotBeNullAccessor(
+                        valueProviderResult.ToString()));
+            }
+            else
+            {
+                bindingContext.Result = ModelBindingResult.Success(model);
+            }
+        }
+        catch (Exception exception)
+        {
+            // Conversion failed.
+            modelState.TryAddModelError(modelName, exception, metadata);
+        }
+        return Task.CompletedTask;
+    }
+}
+```
+
+The code might at first glance seem daunting, but the majority of it is fairly boilerplate.The only real differences between this model binder and the original code that it is based on are the omission of logging, and the way that the value is parsed in order to create a valid DateTime value:
+
+```csharp
+var week = value.Split("-W");
+model = ISOWeek.ToDateTime(Convert.ToInt32(week[0]),Convert.ToInt32(week[1]),DayOfWeek.Monday);
+```
+
+The code that gets the DateTime from a week number uses the ISOWeek utility class to generate a DateTime.from the year and the week number which is obtained by using the string.Split function on the incoming value.
+
+If model binding is successful -a suitable value was obtained and assigned to the model and the ModelBindingContext.Result is set to a value returned from ModelBindingResult.Success. Otherwise, an entry is added to the Errors collection of ModelState.There is also a check,in the event that the incoming value is null,to see if the model property is required,and if so, an error is logged with ModelState.
+
+The ModelBinder attribute is ussed to register the custom model binder against the specific property that it should be used for:
+
+```csharp
+
+[BindProperty,DateType("week"),ModelBinder(BinderType=typeof(WeekOfYearModelBinder))]
+public DateTime Week{get;set;}
+
+```
+
+Now, when the application runs, this model binder will be used for the Week property in this instance.If you want to use the custom binder on properties elsewhere in the application,you need to apply the attribute there too.Alternatively,you can register the model binder using a ModelBinderProvider in Startup where it is available to every request.
+
+##### Model Binder Providers
+
+Model Binder providers are used to register model binders globally.They are responsible for creating correctly configured model binders.All of the built in model binders have a related binder provider.But first, you need a binder:
+
+```csharp
+public class WeekOfYearAwareDateTimeModelBinder : IModelBinder
+{
+    private readonly DateTimeStyles _supportedStyles;
+    private readonly ILogger _logger;
+ 
+    public WeekOfYearAwareDateTimeModelBinder(DateTimeStyles supportedStyles, ILoggerFactory loggerFactory)
+    {
+        if (loggerFactory == null)
+        {
+            throw new ArgumentNullException(nameof(loggerFactory));
+        }
+ 
+        _supportedStyles = supportedStyles;
+        _logger = loggerFactory.CreateLogger<WeekOfYearAwareDateTimeModelBinder>();
+    }
+ 
+    public Task BindModelAsync(ModelBindingContext bindingContext)
+    {
+        if (bindingContext == null)
+        {
+            throw new ArgumentNullException(nameof(bindingContext));
+        }
+ 
+        var modelName = bindingContext.ModelName;
+        var valueProviderResult = bindingContext.ValueProvider.GetValue(modelName);
+        if (valueProviderResult == ValueProviderResult.None)
+        {
+            // no entry
+            return Task.CompletedTask;
+        }
+ 
+        var modelState = bindingContext.ModelState;
+        modelState.SetModelValue(modelName, valueProviderResult);
+ 
+        var metadata = bindingContext.ModelMetadata;
+        var type = metadata.UnderlyingOrModelType;
+ 
+        var value = valueProviderResult.FirstValue;
+        var culture = valueProviderResult.Culture;
+ 
+        object model;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            model = null;
+        }
+        else if (type == typeof(DateTime))
+        {
+            if (value.Contains("W"))
+            {
+                var week = value.Split("-W");
+                model = ISOWeek.ToDateTime(Convert.ToInt32(week[0]), Convert.ToInt32(week[1]), DayOfWeek.Monday);
+            }
+            else
+            {
+                model = DateTime.Parse(value, culture, _supportedStyles);
+            }
+        }
+        else
+        {
+            // unreachable
+            throw new NotSupportedException();
+        }
+ 
+        // When converting value, a null model may indicate a failed conversion for an otherwise required
+        // model (can't set a ValueType to null). This detects if a null model value is acceptable given the
+        // current bindingContext. If not, an error is logged.
+        if (model == null && !metadata.IsReferenceOrNullableType)
+        {
+            modelState.TryAddModelError(
+                modelName,
+                metadata.ModelBindingMessageProvider.ValueMustNotBeNullAccessor(
+                    valueProviderResult.ToString()));
+        }
+        else
+        {
+            bindingContext.Result = ModelBindingResult.Success(model);
+        }
+ 
+        return Task.CompletedTask;
+    }
+}
+```
+
+This is another modified version of the actual DateTimeModelBinder.The difference this time is the addition of the condition that checks if -W exists in the value being processed.If it does,this value comes from a week input and it is processed using the code from the previous example.Otherwise the value is parsed using the original DateTime model binding algorithm(basically DateTime.Parse).This version retains the logging and DateTimeStyles from the original source that need to be injected into the constructor so that the original behaviour for model binding DateTime types is preserved.Configuration of the constructor parameters is taken care of by the model binder provider:
+
+
+```csharp
+
+public class WeekOfYearModelBinderProvider : IModelBinderProvider
+{
+    internal static readonly DateTimeStyles SupportedStyles = DateTimeStyles.AdjustToUniversal | DateTimeStyles.AllowWhiteSpaces;
+    public IModelBinder GetBinder(ModelBinderProviderContext context)
+    {
+        if (context == null)
+        {
+            throw new ArgumentNullException(nameof(context));
+        }
+ 
+        var modelType = context.Metadata.UnderlyingOrModelType;
+        if (modelType == typeof(DateTime))
+        {
+            var loggerFactory = context.Services.GetRequiredService<ILoggerFactory>();
+            return new WeekOfYearAwareDateTimeModelBinder(SupportedStyles, loggerFactory);
+        }
+ 
+        return null;
+    }
+}
+```
+
+This code is again, essentially the same as the built in DateTime model binder provider.The only difference is in the type that the binder returns.
+
+Razor Pages is a layer that sits on top of the MVC framework. Much of what makes Razor Pages "just work" is in the MVC layer.Model binding is one of those features.So the access point to configuring model binders is via MvcOptions in ConfigureServices:
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddRazorPages().AddMvcOptions(options=>{
+        options.ModelBinderProviders.Insert(0,new WeekOfYearModelBinderProvider());
+    });
+}
+```
+
+Model binder providers are evaluated in order until one that matches the input model's data type is located. Then that is used to attempt to bind the incoming value to the model.If binding is unsuccessful,one of two things happens - the model value is set to its default value,or a validation error is added to ModelState.Any other model binder providers are ignored.So this new model binder provider is inserted at the beginning of the collection to ensure that it is used for DateTime types instead of the default model binder.
+
+
 
 #### State Management
 #### Cache
