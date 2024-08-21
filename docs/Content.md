@@ -4267,10 +4267,149 @@ public void ConfigureServices(IServiceCollection services)
 
 Model binder providers are evaluated in order until one that matches the input model's data type is located. Then that is used to attempt to bind the incoming value to the model.If binding is unsuccessful,one of two things happens - the model value is set to its default value,or a validation error is added to ModelState.Any other model binder providers are ignored.So this new model binder provider is inserted at the beginning of the collection to ensure that it is used for DateTime types instead of the default model binder.
 
-
-
 #### State Management
+
+##### State Management In Razor Pages
+
+Managing state in Razor Pages is the process of retaining user or application-related data over the duration of a number of requests.
+
+HTTP is a stateless protocol.Being stateless,there is no requirement placed on HTTP(Web) Servers to retain information about each request or user.By default,multiple requests from the same user are treated as a series of independent and isolated transactions.In fact,the server has no concept of a "user" as such.If you want to retain user or application-related data over a number of requests,you have to implement strategies for managing that yourself.
+
+Razor Pages,along with its underlying MVC framework provides a number of mechanisms for retaining information (or state) across requests,each with its benefits  and drawbacks:
+
+- Hidden Form Fields
+- Query Strings
+- Route Data
+- Cookies
+- TempData
+- Session Variables
+- Application Variables
+- Caching
+
+##### Hidden Form Fields
+
+A hidden form field is a form field that is not visible to the user.However,its value is included in the collection passed back to the server when the form is submitted.You use the input  type="hidden" HTML element or input tag helper to add a hidden field to a form,or you can use the Html.Hidden() or Html.HiddenFor() helper methods.
+
+Hidden field values are typically set form client-side or server-side code.While a hidden field is not visible to the user,that does not make it secure.Values are stored and transmitted in plain text and are accessible in the HTTP request as well as the HTML source that your browser makes available to you.You should not use hidden fields to store sensitive data.Since they form part of the DOM,hidden fields are not tamper-proof,and their values should really be validated just like any other user input. As with any form field,if the POST method is used,there is no limit to the number of characters that can be stored in a hidden field.
+
+
+Query Strings
+
+A query string is a collection of name/value pairs which are appended to a URL.They are separated from the location of the resource by a question mark ?.An example might look like this:
+
+http://www.mydomain.com?name1=value1&name2=value2&name3=value3
+
+Each name/value pair is separated from the others by the & sign.The values are obtained from the Query property of the HttpRequest object,which is exposed in a Razor page via the request property.For example,Request.Query["name1"] will yield value1.
+
+Values are passed from one page to another as query string values automatically if you have a form that uses the GET method.The Razor Pages framework will pass values as query strings if you add route values that aren't included in the template for the route.
+
+The following route template defines a route parameter named name1 in a page called Query.cshtml:
+
+```csharp
+@page "{name1}"
+@model QueryModel
+```
+
+In the next snippet,the user is redirected to the Query page with two route values provided:
+
+```csharp
+public IActionResult OnGet()
+{
+    return RedirectToPage("Query",new {name1="value1",name="value2"});
+}
+
+```
+
+The resulting URL shows how name2 and its associated value is appended as a query string name/value pair,while the route value that's catered for in the template is passed as a segment:http://localhost:xxx/Query/value1?name2=value2
+
+Like hidden fields, query strings should not be used for sensitive data and it is even easier for a user to manipulate query string values so input validation is really important.Just because you generated the query string from your code, that doesn't mean that a malicious user can't generate their own or alter yours in their browser address bar.Unvalidated query string values are the primary route to attacks on web sites.Most browsers limit query strings to around 2000 characters so they are not suitable for managing large amounts of data.However,search engines can follow links with query string values and index their location.
+
+##### Route Data
+
+Route Data is also passed from one page to another via the URL.
+
+##### Cookies
+
+Cookies are small pieces of text that are passed between browser and web server with every request and are commonly used to store relatively small amounts of data.
+
+##### TempData
+
+TempData is a container for short-life data that is only intended to be used or read once.
+
+##### Session Variables
+
+Session State provides a mechanism that enables you to tie together requests from the same user for a limited period - the duration of a session.As such,you can store user-related values and retrieve them at any stage during a session.
+
+##### Applciation Variables
+
+Previous versions of ASP.NET provided APIs for storing and retrieving values globally, which revolved around usage of a dictionary-like structure represented by the System.Web.HttpApplicationState object.ASP.NET Core doesn't offer anything equivalent to this.Instead,you are encouraged to implement your own solutions for managing data globally.
+
+##### Caching
+
+Caching is primarily used to improve performance in applications,but can also be used in web applications as a state management strategy.
+
 #### Cache
+
+##### Cachine in Razor Pages
+
+Server-side caching is primarily used to improve performance in applications,but can also be used in web applications as a state management strategy. This type of caching involves the storage of data or content on the server, particularly data or content that incurs a processing overhead, so that it can be reused without incurring the cost of generation every time.The best candidate for caching is data that doesn't change very often.Look-up data, tag clouds,menu-driven navigation are all classic examples that can benefit from caching.
+
+In-memory storage is most likely to be used in applications hosted on a single server.Applications deployed to the cloud or on web farms are recommended to use a distributed cache system - one which is separate to the application so that each instance of the application can access the same data.
+
+Razor Pages offers two main ways in which you can manage the caching of pieces of content.One is to use the Cache tag helper.The other is to use the a cache provider's API such as that offered by the IMemoryCache.
+
+##### In-Memory Caching
+
+In-memory caching is enabled as a service.It can be injected into PageModel and other classes via their constructor as an instance of IMemoryCache:
+
+```csharp
+public class IndexModel:PageModel
+{
+    private readonly IMemoryCache _cache;
+    public IndexModel(IMemoryCache cache)
+    {
+        _cache = cache;
+    }
+}
+```
+
+##### Managing Cache Entries
+
+The MemoryCache holds items as Key/Value pairs. You would normally use strings as key values because they are easy to compare when performing look-ups.Comparison is case-sensitive when using strings.The recommendation is to use constants for key values to prevent typographical errors.
+
+The IMemoryCache interface defines three methods for managing cache entries:
+
+- CreateEntry
+- Remove
+- TryGetValue
+
+The implementation of the CreateEntry method offered by the MemoryCache class is not particulary intuitive to use.It takes the key name as a parameter and returns an ICacheEntry instance that can then have its properties set.ICacheEntry implements IDisposable.The entry is only added to the cache when its Dispose method is called.This can be done in a using block:
+
+```csharp
+using(var cacheEntry = _cache.CreateEntry("myKey"))
+{
+    //set properties
+} //Dispose called at end of block,committing item to the cache
+```
+
+Or you can call the Dispose explicitly:
+
+```csharp
+var cacheEntry = _cache.CreateEntry("myKey");
+// set properties
+cacheEntry.Dispose();  //adds item to cache
+```
+
+A number of extension methods on the MemoryCache class are made available to simplify setting and getting memory cache values:
+
+|Method|Return Type|Notes|
+|---|---|---|
+|Get|object|Gets the item with the specified key|
+|Get\<TItem\>|TItem|Gets the item with the specified key and attempts to cast it to the specified type|
+|GetOrCreate\<TItem\>|TItem|If the item doesn't exist in the cache,this method will add it|
+
+
+
 #### Managing Security With ASP.NET Identity
 #### Using Ajax
 #### Working with json
