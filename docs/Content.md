@@ -4896,8 +4896,272 @@ The jQuery library was introduced to simplify working in JavasScript across diff
 
 ##### Fetch API
 
-The Fetch API is relatively new,
-#### Working with json
+The Fetch API is relatively new,and as such is unsupported in IE 11 or earlier.The main benefit of using the Fetch API is that it utilise Promises,which are intended to make working with asynchronous code easier.Here is the Fetch version of the previous examples:
+
+```html
+@page
+@model AjaxModel
+<h2>Ajax Partial Example</h2>
+<p><button class="btn btn-primary" id="load">Load</button></p>
+<div id="grid"></div>
+
+@section scripts{
+    <script>
+        document.getElementById('load').addEventListener('click',()=>{
+            fetch('/ajax')
+            .then((response)=>{
+                return response.text();
+            })
+            .then((result)=>{
+                document.getElementById('grid').innerHTML = result;
+            });
+        });
+    </script>
+}
+```
+
+##### jQuery Unobtrusive AJAX 
+
+The jQuery Unobtrusive Ajax library was introduced by Microsoft along with ASP.NET MVC 3.0 back in 2010.It is designed to minimise the amount of client side you need to write to perform some AJAX-related tasks and in many cases eliminate it altogether.Unobtrusive Ajax depends on jQuery,but behaviours are attached to elements declaratively via custom data-* attributes rather than programmatically in client side script.
+
+The previous examples,rewritten to use this library require nothing in the scripts section apart from a reference to the library file:
+
+```html
+@page
+@model AjaxModel
+
+<h2>Ajax Partial Example</h2>
+
+<p><a class="btn btn-primary" data-ajax="true" data-ajax-update="#grid" data-ajax-url="/ajax">Load</a></p>
+<div id="grid"></div>
+@section scripts{
+    <script src="~/lib/jquery-ajax-unobtrusive/jquery.unobtrusive-ajax.min.js"></script>
+}
+
+```
+This time the button has been changed to an anchor element,because Unobtrusive AJAX only targets anchors and forms.The URL for the AJAX request is specified via the data-ajax-url attribute.The element to update is specified via the data-ajax-update attribute,and data-ajax is set to true to enable unobtrusive behaviour on this element.
+
+These are not the only tools for making AJAX calls.There are other libraries such as Axios,SuperAgent and so on.In addition,some front-end frameworks like Angular incorporate their own components for making HTTP calls.
+
+###### Examples
+
+The Collection of examples below show how to accomplish the most common AJAX-based tasks in a Razor Pages environment.They all feature the use of jQuery and some of them also use Fetch.
+
+- Partial Page Update
+- Cascading Dropdowns
+- Form Post
+- File Upload
+- Working with Json
+
+##### Posting Forms with AJAX in Razor Pages
+
+AJAX is a technique used for making asynchronous requests from the browser to the server for various purpose including posting form values.This section covers asynchronous from submission from a Razor Page using both the jQuery AJAX capability and the Fetch API.
+
+##### The Razor Page
+
+The PageModel for this example includes a property called InputModel,which encapsulates the values to be bound when the form is posted:
+
+```csharp
+public class IndexModel:PageModel
+{
+    [BindProperty]
+    public InputModel Input{get;set;}
+    public void OnPost()
+    {
+
+    }
+}
+
+public class InputModel
+{
+    [Display(Name="First Name")]
+    public string FirstName{get;set;}
+    [Display(Name="Last Name")]
+    public string LastName{get;set;}
+    [EmailAddress]
+    public string Email{get;set;}
+    [Display(Name="Date of Birth"),DateType(DateType.Date)]
+    public DateTime DateOfBirth{get;set;}
+}
+```
+
+The InputModel properties make use of attributes to control the output of tag helpers,specifically the label and input tag helpers.
+
+Here is the content page,styled using BootStrap 4:
+
+```html
+<form method="post" class="col-sm-6">
+
+    <div class="form-group row">
+        <label asp-for="Input.FirstName" class="col-sm-3 col-form-label"></label>
+        <div class="col-sm-7">
+            <input asp-for="Input.FirstName" class="form-control">
+        </div>
+    </div>
+    <div class="form-group row">
+        <label asp-for="Input.LastName" class="col-sm-3 col-form-label"></label>
+        <div class="col-sm-7">
+            <input asp-for="Input.LastName" class="form-control">
+        </div>
+    </div>
+
+    <div class="form-group row">
+        <label asp-for="Input.DateOfBirth" class="col-sm-3 col-form-label"></label>
+        <div class="col-sm-7">
+            <input asp-for="Input.DateOfBirth" class="form-control">
+        </div>
+    </div>
+
+    <div class="form-group row">
+        <label asp-for="Input.Email" class="col-sm-3 col-form-label"></label>
+        <div class="col-sm-7">
+            <input asp-for="Input.Email" class="form-control">
+        </div>
+    </div>
+
+    <div class="form-group row">
+        <div class="col-sm-7 offset-sm-3">
+            <button class="btn btn-primary" id="submit">Submit</button>
+        </div>
+    </div>
+
+</form>
+
+```
+![registeruser](assets/44.png)
+
+##### Using jQuery
+
+The first example looks at using jQuery to post the form content asynchronously.The actual script is included using a Razor section,but can just as easily be included in a separate file:
+
+```html
+@section scripts{
+    <script>
+        $(function(){
+            $('#submit').on('click',function(evt){
+                evt.preventDefault();
+                $.post('',$('form').serialize(),function(){
+                    alert('Posted using jQuery');
+                });
+            });
+        });
+    </script>
+}
+```
+
+The jQuery library includes a number of wrapper functions that result in a minimal amount of code required to make an AJAX request.The post function takes care of initialising the XMLHttpRequest object and setting the correct method for the request.This example will post to the current URL because the url parameter is left empty.The data to be posted is constructed using the serialize method,which takes care of retrieving all form values - including the request verification token - and encoding them correctly.
+
+##### Unobtrusive AJAX 
+
+This example uses the Unobtrusive AJAX library which is part of ASP.NET Core and is an add-on to jQuery.It is designed to minimise the amount of script you need to write to handle AJAX requests.Unobtrusive AJAX relies on custom HTML 5 data- attributes being applied to the form.So the HTML for the opening form tag is altered as follows:
+
+```html
+<form method="post" class="col-sm-6" data-ajax="true" data-ajax-method="post" data-ajax-complete="completed">
+```
+
+The data-ajax-completed attribute references a callback function named completed defined in the scripts section:
+
+```html
+@section scripts{
+    <script>
+        completed = () => {
+            alert("Posted using Unobtrusive AJAX");
+        };
+    </script>
+}
+```
+
+Using Fetch
+
+The Fetch API is supported by all modern browsers except Internet Explorer.It is supported by the new Edge browser from Microsoft,which is available on Windows 10.This example makes no use of the jQuery library at all,relying on pure Javascript:
+
+```html
+@section scripts{
+    <script>
+        document.forms[0].onsubmit = () => {
+            let formData = new FormData(document.forms[0]);
+            fetch('',{
+                method:'post',
+                body:new URLSearchParams(formData)
+            })
+            .then(()=>{
+                alert('Posted using Fetch');
+            });
+            return false;
+        };
+    </script>
+}
+```
+
+This example uses the FormData API to construct a set of key/value pairs representing the form fields and their values.The FormData constructor will accepts an HTML form element and then use the name property of each element in the form for the keys and their submitted value for the values.
+
+The FormData object is passed to an instance of URLSearchParams,an object that changes the content-type of the request from multipart/formdata (the default for FormData) to application/x-www-form-urlencoded,which is the correct type for posting simple text/ASCII data.It should be pointed out that you can leave the content-type as multipart/form-data.Simple text inputs will still be bound to PageModel properties by the model binder.
+
+XMLHttpRequest
+
+For completeness,here is the script for a version that uses the XMLHttpRequest object without any third party libraries:
+
+```html
+@section scripts{
+    <script>
+        document.forms[0].onsubmit = ()=>{
+            let formData = new FormData(document.forms[0]);
+            var xhr = new XMLHttpRequest();
+            xhr.onreadstatechange = function(){
+                if(this.readState ==4 && this.status==200)
+                {
+                    alert('Posted using XMLHttpRequest');
+                }
+            };
+
+            xhr.open('post','',true);
+            xhr.send(new URLSearchParams(formData));
+            return false;
+        };
+    </script>
+}
+```
+
+##### Partial Page Update with AJAX in Razor Pages
+
+Partial Pages consist of fragments of HTML and server-side code to be included in any number of pages or layouts.Partial pages can be used to break up complex pages into smaller units,thereby reducing the complexity and allowing teams to work on different units concurrently.They can also be used to provide content for updating part of the rendered web page via AJAX in client side script.
+
+A partial page is a single .cshtml file.It has no PageModel and it doesn't have an @page directive at the top.A partial can be strongly typed-have an @model directive,or it can work purely with ViewData.The following examples are based on strongly typed partials which is considered best practice.
+
+The example features the same ICarService used in Working with Json in Razor Pages.A collection of Car objects will be passed to the partial for display,which will be invoked via client-side script:
+
+First,the Car entity:
+
+```csharp
+public class Car
+{
+    public int Id {get;set;}
+    public string Make {get;set;}
+    public string Model { get; set; }
+    public int Year { get; set; }
+    public int Doors { get; set; }
+    public string Colour { get; set; }
+    public decimal Price { get; set; }
+}
+```
+
+
+##### Using jQuery Unobtrusive AJAX in ASP.NET Core Razor Pages
+
+The jQuery Unobtrusive AJAX library has been around for almost 10 years,and was first introduced in ASP.NET MVC 3.0,just as adoption of HTML5 custom data-* attributes was becoming commonplace and supported widely across browsers.It is a small library,4kb when minified,that makes use of jQuery's AJAX capabilities.It is now part of ASP.NET Core and is hosted at GitHub.
+
+Unobtrusive AJAX,like other unobtrusive libraries,works by examining selected HTML elements for the presence of specific custom data- attributes,and then attaching jQuery's AJAX functions to those elements when they are clicked.In essence,it saves much,if not all of the boilerplate code that you would otherwise have to write to fire an AJAX request and process the response.
+
+You can obtain Unobtrusive AJAX from npm (npm i jquery-ajax-unobtrusive from the Package Manager Console in Visual Studio),or you can use one of the many ways that Visual Studio provides to install it from NuGet.Once you have it,you can create a new folder for it in wwwroot/lib and copy the file(s) there:
+
+![wwwroot](assets/45.png)
+
+Then you can reference it in the page that you want to use it in directly or as a fallback to a CDN-hosted version:
+
+![cdnhosted](assets/46.png)
+
+
+#### Working with jsonn
 #### Scaffolding
 #### Publishing To IIS
 #### Advanced
