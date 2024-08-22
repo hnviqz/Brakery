@@ -4543,6 +4543,7 @@ var fileProvider = new PhysicalFileProvider(fileInfo.DirectoryName);
 var changeToken = fileProvider.Watch(fileInfo.Name);
 cacheItem.ExpirationTokens.Add(changeToken);
 ```
+#### Managing Security With ASP.NET Identity
 
 ##### Introduction to Identity in Razor Pages
 
@@ -4809,8 +4810,93 @@ services.ConfigureApplicationCookies(options=>{
 });
 ```
 
-#### Managing Security With ASP.NET Identity
+
 #### Using Ajax
+
+
+##### Working with AJAX in Razor Pages 
+
+###### Introduction
+
+AJAX is a technique used for marking requests from the browser to the server for various purposes such as the retrieval of assorted content including data,HTML,XML,posting form values and so on.Requests are initiated from client script (usually JavaScript) once the page has already been loaded in the browser.Traditionally,the browsers' built in XMLHttpRequest object is used to make the request,but newer browsers also support the Fetch API.Requests are by default asynchronous and do not block the browser - allowing the user to continue to work on the web page while awaiting the response from the server.
+
+The main effect achieved by using AJAX to manage workflow in a web page is to produce a smoother, more user-friendly experience for the user.Previous to the widespread adoption of AJAX-based techniques,pages were rendered entirely on the web server.If you wanted to update parts of the page as a result of choices that the user made,those choices would have to be sent to the server as a form post and the page would be regenerated on the web server in its entirety.The user would have to wait for the new page to be generated on the server and rendered in the browser before they could continue their task.The use of AJAX in a web page eliminates this stop-start approach to working in a web page.
+
+> **Note**
+>
+> The examples below feature the use of Arrow Functions, a feature of ES 6 (also confusingly known as ECMAScript 2015).They are not supported in Internet Explorer 11 or lower.If you want to try examples out in IE, you will need to revert to the older method of defining function expressions in Javascript:
+>
+> Arrow Function:
+> ```csharp
+> ()=>{
+>   // code to execute
+>}
+> ```
+> Old way:
+> 
+> function(){
+>   //code to execute  
+> }
+>
+>
+
+##### AJAX Tools
+
+###### XMLHttpRequest
+
+The primary tool for makeing AJAX requests is the XMLHttpRequest object which is included in every browser.The following code shows how to use it from a Razor page to update part of the page:
+
+```html
+@page
+@model AjaxModel
+
+<h2>Ajax Partial Example</h2>
+<p><button class="btn btn-primary" id="load">Load</button></p>
+
+@section scripts{
+    <script>
+        document.getElementById('load')
+            .addEventListener('click',()=>{
+                var xhr = new XMLHttpRequest();
+                xhr.onreadystatechange = function(){
+                    if(this.readyState==4&&this.status==200){
+                        document.getElementById('grid').innerHTML = this.responseText;
+                    }
+                };
+                xhr.open('get','/ajaxdemo');
+                xhr.send();
+            })
+    </script>
+}
+```
+
+The client-side code is placed in a section named scripts which is defined in the layout page.The button with the id of load has a click event handler applied to it that creates and uses an XMLHttpRequest object(xhr) to obtain the resource located at the '/ajaxdemo' URL.The xhr component uses a 'get' request,and has a listener attached to its onreadyStatechange property.The readyState property value indicates the current state of the component.It changes as the request is made.The value 4 indicates that the request has completed.The status property contains the HTTP status code of the response.HTTP status code 200 is defined as ok, or that the request has succeeded.If both of these are the case,the responseText from the request is placed in the element with an id of grid.
+
+##### jQuery
+
+The jQuery library was introduced to simplify working in JavasScript across different browsers.It unified the varying APIs offered by different browser vendors behind easy-to-use wrapper methods and provides a much terser syntax for accomplishing the most common tasks.AJAX is one of many areas where that advantage of using jQuery is really obvious.Here is the same functionality from the previous section implemented using jQuery:
+
+```csharp
+@page
+@model AjaxModel
+<h2>Ajax Partial</h2>
+<p><button class="btn btn-primary" id="load"></button></p>
+<div id="grid"></div>
+
+@section scripts{
+    <script>
+        $(function(){
+            $('#load').on('click',function(){
+                $('#grid').load('/ajaxdemo');
+            });
+        });
+    </script>
+}
+```
+
+##### Fetch API
+
+The Fetch API is relatively new,
 #### Working with json
 #### Scaffolding
 #### Publishing To IIS
