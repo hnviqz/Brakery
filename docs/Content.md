@@ -5145,6 +5145,430 @@ public class Car
 }
 ```
 
+The service has one method that conforms to an interface,generating and returning a list of cars:
+
+```csharp
+public interface ICarService
+{
+    List<Car> GetAll();
+}
+
+public class CarService:ICarService
+{
+    public List<Car> GetAll()
+    {
+        List<Car> cars = new List<Car>{
+            new Car{Id=1,Make="Audi",Model="R8",Year=2014,Doors=2,Colour="Red",Price=79995},
+            new Car{Id=2,Make="Aston Martin",Model="Rapide",Year=2010,Doors=2,Colour="Black",Price=54995},
+            new Car{Id = 3, Make="Porsche",Model=" 911 991",Year=2016,Doors=2,Colour="White",Price=155000},
+            new Car{Id = 4, Make="Mercedes-Benz",Model="GLE 63S",Year=2017,Doors=5,Colour="Blue",Price=83995},
+            new Car{Id = 5, Make="BMW",Model="X6 M",Year=2016,Doors=5,Colour="Silver",Price=62995},
+        };
+
+        return cars;
+    }
+}
+```
+
+This service is registered with the ASP.NET Core Dependency Injection system so that it can be made available throughout the application:
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddMvc();
+    services.AddTransient<ICarService,CarService>();
+}
+```
+
+The partial itself contains an HTML table styled using Bootstrap.It is named _CarPartial.cshtml and is placed in the Pages/Shared Folder - that being one of the default search locations for partials in Razor Pages.The model that the partial expects is a List<Car>:
+
+```html
+@model List<Car>
+
+<table class="table table-striped">
+    @foreach(var car in Model)
+    {
+        <tr>
+            <td>@car.Model</td>
+            <td>@car.Make</td>
+            <td>@car.Year</td>
+            <td>@car.Price</td>
+        </tr>   
+    }
+</table>
+```
+
+Most often,the handler method that serves up partials will not be the primary handler method in a specific page.Instead,a named handler will be used.The following code shows a basic PageModel that includes a named handler (OnGetCarPartial) returning a PartialViewResult:
+
+```csharp
+public class AjaxPartialModel:PageModel
+{
+    private readonly ICarService _carService;
+    public AjaxPartialModel(ICarService carService)
+    {
+        _carService = carService;
+    }
+
+    public List<Car> Cars {get;set;}
+
+    public void OnGet()
+    {
+
+    }
+
+    public PartialViewResult OnGetCarPartial()
+    {
+        Cars = _carService.GetAll();
+        return Partial("_CarPartial",Cars);
+    }
+}
+```
+
+> **Note**
+>
+> The Partial helper method was added to the PageModel class in ASP.NET Core 2.2. In Razor Pages versions up to and including 2.1,you must explicitly create an instance of PartialViewResult and return that from the handler,passing in the current ViewData dictionary and,optionally,a model for the partial (if it expects one):
+>
+> ```csharp
+> public PartialViewResult OnGetCarPartial()
+> {
+>       Cars = _carService.GetAll();
+>       return new PartialViewResult{
+>           ViewName = "_CarPartial",
+>           ViewData = new ViewDataDictionary<List<Car>>(ViewData,Cars)
+>       };
+> }
+>```
+
+Here is the content page where jQuery is used to make the AJAX request when the button is clicked:
+
+```html
+@page
+@model RazorPagesTests.Pages.AjaxPartialModel
+
+<h2>Ajax</h2>
+<p><button class="btn btn-primary" id="load">Load</button></p>
+<div id="grid"></div>
+
+@section scripts{
+    <script>
+        $(function(){
+            $('#load').on('click',function(){
+                $('#grid').load('/ajaxpartial?handler=CarPartial');
+            });
+        });
+    </script>
+}
+```
+
+Notice particularly the URL that is passed to the load method - the name of the named handler method (without the OnGet part) is passed to a query string value called handler.If you prefer not to have a query string, you can create a route template in the Razor Page that adds an optional item named handler to the route values:
+
+`@page "{handler}"`
+
+This enables you to can pass the name of the handler as a segment of the URL:
+
+`$('#grid').load('/ajaxpartial/carpartial');`
+
+Here is an alternative version that uses the Fetch API instead of the XMLHttpRequest object via jQuery:
+
+```html
+@page
+@model RazorPagesTests.Pages.AjaxPartialModel
+
+<h2>Ajax</h2>
+<p><button class="btn btn-primary" id="load">Load</button></p>
+<div id="grid"></div>
+
+@section scripts{
+    <script>
+        document.getElementById('load').addEventListener('click',()=>{
+            fetch('/ajaxpartial?handler=CarPartial'
+            .then((response)=>{
+                return response.text();
+            })
+            .then((result)=>{
+                document.getElementById('grid').innerHTML = result;
+            });
+        });
+    </script>
+}
+
+```
+
+##### Cascading Dropdowns With AJAX in Razor Pages
+
+The cascading dropdown pattern is typically used to help users to filter data.The first dropdown is populated with the broadest options, and subsequent dropdowns are populated with options that relate to the the selected value of the preceding dropdown.This requirement does not need AJAX,but using an approach that incorporates AJAX requests provides a much smoother experience for the user.
+
+In the example that follows,the user will be presented with a set of Category options.Depending on the selected CategoryId value,SubCategories will be obtained via AJAX and used to populate the second dropdown.This example features a very simple service that provides collections of Category and SubCategory entities and its interface:
+
+```csharp
+public interface ICategoryService
+{
+    IEnumerable<Category> GetCategories();
+    IEnumerable<SubCategory> GetSubCategories(int categoryId);
+}
+
+public class CategoryService : ICategoryService
+{
+    public IEnumerable<Category> GetCategories()
+    {
+        return new List<Category>{
+            new Category {CategoryId=1,CategoryName="Category 1"},
+            new Category {CategoryId=2,CategoryName="Category 2"},
+            new Category {CategoryId=3,CategoryName="Category 3"}
+        };
+    }
+
+    public IEnumerable<SubCategory> GetSubCategories(int categoryId)
+    {
+        var subCategories = new List<SubCategory> {
+            new SubCategory { SubCategoryId = 1, CategoryId = 1, SubCategoryName="SubCategory 1" },
+            new SubCategory { SubCategoryId = 2, CategoryId = 2, SubCategoryName="SubCategory 2" },
+            new SubCategory { SubCategoryId = 3, CategoryId = 3, SubCategoryName="SubCategory 3" },
+            new SubCategory { SubCategoryId = 4, CategoryId = 1, SubCategoryName="SubCategory 4" },
+            new SubCategory { SubCategoryId = 5, CategoryId = 2, SubCategoryName="SubCategory 5" },
+            new SubCategory { SubCategoryId = 6, CategoryId = 3, SubCategoryName="SubCategory 6" },
+            new SubCategory { SubCategoryId = 7, CategoryId = 1, SubCategoryName="SubCategory 7" },
+            new SubCategory { SubCategoryId = 8, CategoryId = 2, SubCategoryName="SubCategory 8" },
+            new SubCategory { SubCategoryId = 9, CategoryId = 3, SubCategoryName="SubCategory 9" }
+        };
+        return subCategories.Where(s => s.CategoryId == categoryId);
+    }
+}
+```
+
+The GetCategories method returns all Category instances.The GetSubCategories method returns a collection of SubCategory entities,filtered by the categoryId value passed in.The interface and its implementation need to be registered with the dependency injection system in Startup:
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddTransient<ICategoryService,CategoryService>();
+}
+```
+
+The PageModel class for the Razor page where the dropdowns will appear is as follows:
+
+```csharp
+public class CascadingDropdownsModel : PageModel
+{
+    private ICategoryService _categoryService;
+    public CascadingDropdownsModel(ICategoryService categoryService)=>this._categoryService = categoryService;
+
+    [BindProperty(SupportsGet=true)]
+    public int CategoryId{get;set;}
+    public int SubCategoryId{get;set;}
+    
+    public SelectList Categories{get;set;}
+
+    public void OnGet()
+    {
+        Categories = new SelectList(_categoryService.GetCategories(),nameof(Category.CategoryId),nameof(Category.CategoryName));
+    }
+
+    public JsonResult OnGetSubCategories()
+    {
+        return new JsonResult(_categoryService.GetSubCategories(CategoryId));
+    }
+}
+
+```
+
+The CategoryService is injected into the constructor and assigned to a private field for later use. Three public properties have been added to the PageModel.The first is an int representing the selected CategoryId value.The AJAX request will use the GET verb,so the SupportsGet=true option has been applied to the BindProperty attribute that decorates the property.The second property represents the selected SubCategory.Its only use in this example is to render a select tag helper,but if you want to capture the selected value using model binding,you would need to decorate be property with the BindProperty attribute accordingly.
+
+The final public property is a SelectList type,and will represent the options for the initial Category dropdown list.The property is instantiated in the OnGet handler method.
+
+Another handler method OnGetSubCategories, this one being a named handler method,is added.It returns the filtered SubCategory collection as JASON.
+
+The content page contains two select tag helpers:
+
+```html
+<h4>Categories</h4>
+<select asp-for="CategoryId" asp-items="Model.Categories">
+    <option value="">Select Category</option>
+</select>
+<h4>SubCategories</h4>
+<select asp-for="SubCategoryId"></select>
+```
+
+The first is populated with the categories while the second is initially empty:
+
+![category](assets/47.png)
+
+The content page also contains a script block that utilises jQuery to add an event listener to the first drop down and make the AJAX call to the named handler:
+
+
+```html
+@section scripts{
+    <script>
+        $(function () {
+        $("#CategoryId").on("change", function() {
+            var categoryId = $(this).val();
+            $("#SubCategoryId").empty();
+            $("#SubCategoryId").append("<option value=''>Select SubCategory</option>");
+            $.getJSON(`?handler=SubCategories&categoryId=${categoryId}`, (data) => {
+                $.each(data, function (i, item) {
+                    $("#SubCategoryId").append(`<option value="${item.subCategoryId}">${item.subCategoryName}</option>`);
+                });
+            });
+        });
+    }); 
+    </script>
+}
+```
+
+Each time the selection in the first dropdown is changed,the second one is cleared,and then populated with the SubCategories returned from the getJSON call.
+
+##### Fetch
+
+The following code block is the equivalent to the previous one exccpt that it uses the Fetch API and no jQuery at all:
+
+
+```html
+
+@section scripts{
+<script>
+    document.getElementById('CategoryId').addEventListener('change', (e) => {
+        document.getElementById('SubCategoryId').innerHTML = "<option value=''>Select SubCategory</option>";
+        fetch(`?handler=SubCategories&categoryId=${e.target.value}`)
+            .then((response) => {
+                return response.json();
+            })
+            .then((data) => {
+                Array.prototype.forEach.call(data, function (item, i) {
+                    document.getElementById('SubCategoryId').innerHTML += `<option value="${item.subCategoryId}">${item.subCategoryName}</option>`
+                });
+            });
+    });
+</script>
+}
+```
+
+##### Uploading Files via AJAX in Razor Pages
+
+AJAX is a technique used for making asynchronous requests from the browser to the server for various purposes including posting form values.This section covers asynchronous form submission from a Razor Page using both the jQuery AJAX capability and the Fetch API.
+
+##### The Razor Page
+
+The PageModel for this example includes a property called UploadedFile which represents the file that gets uploaded when the form is posted.The IFormFile type is located in the Microsoft.AspNetCore.Http namespace:
+
+```csharp
+public class IndexModel : PageModel
+{
+    [BindProperty,Display(Name="File")]
+    public IFormFile UploadedFile { get;set;}
+    public void OnPost()
+    {
+
+    }
+}
+```
+
+The UploadedFile property make use of attributes to control the output of tag helpers,specifically the label and input tag helpers.
+
+Here is the content page,styled using BootStrap 4:
+
+```html
+
+<form method="post" class="col-sm-6">
+
+    <div class="form-group row">
+        <label asp-for="UploadedFile" class="col-sm-3 col-form-label"></label>
+        <div class="col-sm-7">
+            <input asp-for="UploadedFile" class="form-control">
+        </div>
+    </div>
+
+    <div class="form-group row">
+        <div class="col-sm-7 offset-sm-3">
+            <button class="btn btn-primary" id="submit">Submit</button>
+        </div>
+    </div>
+
+</form>
+
+```
+
+The input tag helper automatically ensures that the type property on the input is rendered as file, based on the data type of the property passed to the asp-for attribute.
+
+![fileuploadcontrol](assets/48.png)
+
+##### Using jQuery
+
+The first example looks at using jQuery to post the form content asynchronously.The actual scripts is included using a Razor section,but can just as easily be included in a separate file:
+
+```html
+@section scritps{
+    <script>
+        $(function(){
+            $('#submit').on('click',function(evt){
+                evt.preventDefault();
+                $.ajax({
+                    url:'',
+                    data:new FormData(document.forms[0]),
+                    contentType:false,
+                    processData:false,
+                    type:'post',
+                    success:function(){
+                        alert('Uploaded by jQuery');
+                    }
+                });
+            });
+        });
+    </script>
+}
+```
+The jQuery library includes a number of wrapper functions that result in a minimal amount of code required to make an AJAX request e.g. $.post,$.get.However,for uploading files,the full $.ajax version is needed because some settings need to be changed.The contenttype needs to be set to false along with the processData option.Otherwise jQuery will not see this as a file upload,and will set the encoding of the request body to application/x-www-form-urlencode,which is fine for simple text,but not for files.
+
+When the form is posted,the file is automatically bound to the IFormFile property on the PageModel:
+
+![usingjquery](assets/49.png)
+
+##### Using Fetch
+
+The Fetch API is supported by all modern browsers except Internet Explorer.It is supported by the new Edge browser from Microsoft,which is available on Windows 10.This example makes no use of the jQuery library at all,relying on pure Javascript:
+
+```html
+@section scripts{
+    <script>
+        document.getElementById('submit').addEventListener('click',(evt)={
+            evt.preventDefault();
+            let data = new FormData(document.forms[0]);
+            fetch('',{
+                method:'post',
+                body:data
+            })
+            .then(()=>{
+                alert('Posted using Fetch');
+            });
+        });
+    </script>
+}
+```
+
+This example uses the FormData API to construct a set of key/value pairs representing the form fields and their values.The FormData constructor will accepts and HTML form element and then use the name property of each element in the form for the keys and their submitted value for the values.
+
+When using FormData,the encoding type of the request body defaults to multipart/form-data,which is the correct encoding for posting binary data.
+
+##### Using XMLHttpResult
+
+Finally,this is how it is achieved using the XMLHttpRequest object:
+
+```html
+section scripts{
+    document.forms[0].onsubmit=()=>{
+        let formData = new FormData(document.forms[0]);
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function(){
+            if(this.readState === 4 && this.status === 200){
+                alert('Posted using XMLHttpRequest');
+            }
+        };
+        xhr.open('post','',true);
+        xhr.send(formData);
+        return false;
+    };
+}
+```
+
 
 ##### Using jQuery Unobtrusive AJAX in ASP.NET Core Razor Pages
 
@@ -5160,8 +5584,667 @@ Then you can reference it in the page that you want to use it in directly or as 
 
 ![cdnhosted](assets/46.png)
 
+##### Custom Attributes
+
+The following table details the custom attribute control the behaviour of jQuery Unobtrusive AJAX:
+
+|Attribute|Description|
+|---|---|
+|data-ajax|Must be set to true to activate unobtrusive Ajax on the target element.|
+|data-ajax-confirm|Gets or sets the message to display in a confirmation window before a request is submitted.|
+|data-ajax-method|Gets or sets the HTTP request method("Get" or "Post").|
+|data-ajax-mode|Gets or sets the mode that specifies how to insert the response into the target DOM element.Valid values are before,after and replace.Default is replace|
+|data-ajax-loading-duration|Gets or sets a value,in milliseconds,that controls the duration of the animation when showing or hiding the loading element.|
+|data-ajax-loading|Gets or sets the id attribute of an HTML element that is displayed while the Ajax function is loading.|
+|data-ajax-begin|Gets or sets the name of the Javascript function to call immediately before the page is updated.|
+|data-ajax-complete|Gets or sets the Javascript function to call when response data has been instantiated but before the page is updated.|
+|data-ajax-failure|Gets or sets the javacript function to call if the page update fails.|
+|data-ajax-success|Gets or sets the javascript function to call after the page is successfully updated|
+|data-ajax-update|Gets or sets the ID of the DOM element to update by using the response from the server.|
+|data-ajax-url|Gets or sets the URL to make the request to.|
+
+The following example shows a form with the minimum attributes required to convert to an AJAX submission:
+
+```html
+@page
+@model IndexModel
+
+<form method="post" data-ajax="true" data-ajax-method="post">
+    Name:<input type="text" name="name" /><br>
+    <input type="submit" />
+
+</form>
+```
+
+There is no action specified,so the form values will be posted to the URL of the page where they can be processed in an OnPost handler.Note that the form's method attribute is specified as post,along with the custom data-ajax-method attribute.In the absendce of an action attribute being applied this is necessary to ensure that the request verification token hidden field is generated and included in the form.Without this,form posts will result in a 400 Bad Request status code because they will fail the request verification test:
+
+![400badrequest](assets/50.png)
+
+The data-ajax-confirm attribute takes a string representing the message to display in a comfirm prompt to users before the form i s posted:
+
+```html
+<form method="post" data-ajax="true" data-ajax-method="post" data-ajax-confirm="Are you sure?">
+    Name:<input type="text" name="name" /><br>
+    <input type="submit" />
+</form>
+```
+
+##### Callback functions
+
+When an AJAX request is made using jQuery, a jqXHR object is returned.This is made available to callback functions that you specify via the data-ajax-complete,data-ajax-success and data-ajax-failure attributes.
+
+The next example shows how to access the jqXHR object via a parameter to the callback function:
+
+```html
+@page
+@model IndexModel
+
+<form method="post" data-ajax="true" data-ajax-method="post" data-ajax-comlete="completed">
+    Name:<input type="text" name="name" /><br>
+    <input type="submit" />
+</form>
+
+@section scripts{
+    <script src="~/lib/jquery-ajax-unobtrusive/jquery.unobtrusive-ajax.min.js"></script>
+    <script>
+        completed = function(xhr){
+            alert('Hi ${xhr.responseText}!');
+        }
+    </script>
+}
+```
+
+The PageModel includes a bound property representing the name that is posted and returns it back as a response:
+
+```csharp
+public class IndexModel : PageModel
+{
+    [BindProperty]
+    public string Name {get;set;}
+    public IActionResult OnPost()
+    {
+        return Content(Name);
+    }
+}
+```
+
+When the AJAX post completes (successfully or otherwise), the completed function is called with the jqHR object as a parameter.The response body is available in the responseText property.
+
+The next example shows how to catch errors using the data-ajax-failure attribute:
+
+```html
+@page
+@model IndexModel
+
+<form method="post" data-ajax="true" data-ajax-url="/notfound" data-ajax-method="post" data-ajax-failure="failed">
+    Name:<input type="text" name="name" /><br>
+    <input type="submit" />
+</form>
+
+@section scripts{
+    <script src="~/lib/jquery-ajax-unobtrusive/jquery.unobtrusive-ajax.min.js"></script>
+    <script>
+        failed = function (xhr) {
+            alert(`Status: {xhr.status}, Status Text: {xhr.statusText}`);
+        };
+    </script>
+}
+```
+
+In this case,the post results in a 404 not found error,details of which are displayer in a browser alert:
+
+![404](assets/51.png)
+
+##### Partial Updates
+
+The data-ajax-update attribute is used to specify the DOM element that should be updated with the response.The value passed to it is a standard CSS selector.If multiple elements match the selector,the first matching element will be updated.
+
+In this example,the attribute is attached to an anchor element.The click will be intercepted by jQuery and managed asychronously:
+
+```html
+@page
+@model IndexModel
+
+<a href="" data-ajax="true" data-ajax-url="/index/partial" data-ajax-update="#panel">Click here</a>
+<div id="panel"></div>
+```
+
+The URL is a named handler method in the Index PageModel:
+
+```csharp
+public class IndexModel:PageModel
+{
+    public IActionResult OnGetPartial()
+    {
+        return new PartialViewResult{
+            ViewName = "_HelloWorldPartial",
+            ViewData = this.ViewData
+        };
+    }
+}
+```
+
+The content of _HelloWorldPartial.cshtml is just one line:
+
+`<p>@ViewData["Message"] from the Hello World partial at @DateTime.Now</p>`
+
+When the link is clicked,the content is placed in the div with the id of panel:
+
+![panel](assets/52.png)
+
+If you click the link again,the existing content will be replaced with the new response.That is the default behaviour when the data-ajax-mode is not specified.If you want to insert the new content so that it appears before the existing content,set the data-ajax-mode value to before:
+
+```html
+<a href="" data-ajax="true" data-ajax-url="/index/partial" data-ajax-update="#panel" data-ajax-mode="before">Click here</a>
+```
+
+Now the response generated from subsequent clicks appears above the existing content:
+
+![click](assets/53.png)
+
+Setting the data-ajax-mode attribute to after will result in the response being appended to any existing content.
+
+##### Displaying a Loading GIF
+
+Sometimes, as a courtesy to users to let them know that something is happening when an asynchronous operation takes a while to complete,an indication of progress is displayed.This usually takes the form of an animated gif image,or an animated font.The data-ajax-loading attribute specifies the element that should be displayed while the AJAX operation is taking place.The data-ajax-loading-duration attribute takes a value in milliseconds.This is used to determine how long it takes to make the loading element visible and then to hide it.The loading element slides down and to the right when becoming visible.If no value is specified,the default is 400.
+
+In this example, a spinner from the FontAwesome font collection(<i class="fa-solid fa-spinner"></i>) is used to show progress. It has its display property set to none initially. jQuery will remove that setting before the request is sent,and then reapply it once it has completed (regardless of success).
+
+```html
+<a href="" data-ajax="true" data-ajax-url="/index/partial" data-ajax-update="#panel" data-ajax-loading="#spinner">Click here</a>
+
+<span id="spinner" style="display:none;"><i class="fas fa-spinner fa-spin"></i></span>
+
+<div id="panel"></div>
+```
+
+In order to simulate a long running operation, the handler method is altered to include a call to Thread.Sleep:
+
+```csharp
+public iActionResult OnGetPartial()
+{
+    Thread.Sleep(2000);
+    return new PartialViewResult
+    {
+        ViewName = "_HelloWorldPartial",
+        ViewData = this.ViewData
+    }
+}
+```
+
+This ensures that the animation will be visible for at least 2 seconds:
+
+![spinner](assets/54.png)
 
 #### Working with jsonn
+
+##### Working with JSON in Razor Pages
+
+UI generation and processing within web applications is moving increasingly to the client. Data processing and storage is undertaken on the server, with JSON being the preferred format for exchanging data between the server and the client. The recommended approach to providing data services that work with JSON in ASP.NET Core is to use the Web API framework.
+
+##### Web API
+
+Web API is a framework for building HTTP-based services. Typically, that means making data available as a service via the HTTP procotol. Services built using Web API conform to the REpresentational State Transfer (REST) architectural pattern. An important element of this is that the service should respond appropriately based on the HTTP verb that was used to make the request (GET,POST,PUT,DELETE etc.). Different verbs are used by the client making the request to express the intent behind the operation. They map to CURD operations as follows:
+
+|HTTP Verb|CURD Operation|
+|---|---|
+|POST|Create|
+|GET|Read|
+|PUT|Update|
+|DELETE|Delete|
+
+Web API controllers are available to a Razor Pages application without any additional configuration, and the default data format that they work with is JSON.
+
+##### An example application
+
+The following walkthrough illustrates how to integrate Web API into a Razor Pages application to provide CURD services. The application itself is a single page CURD application. The subject matter is cars. The application uses jQuery on the client for managing the UI, and an in-memory cache to store the cars. Both choices were made with simplicity in mind for demonstration purposes.
+
+1. Create a new Razor Pages application using CLI commands (dotnet new razor) or using Visual Studio New Project dialog. Name the project RazorAPI if you plan to copy and paste code from here and don't want issues with conflicting namespaces occuring.
+
+2. Add a folder named Models and add a new C# class file to it named Car.cs. Replace any existing content with the following:
+
+```csharp
+namespace RazorAPI.Models
+{
+    public class Car
+    {
+        public int Id { get; set; }
+        public string Make { get; set; }
+        public string Model { get; set; }
+        public int Year { get; set; }
+        public int Doors { get; set; }
+        public string Colour { get; set; }
+        public decimal Price { get; set; }
+    }
+}
+
+```
+3. Add a new folder named Services and add a new C# class file to it named CarService.cs. Replace any existing content with the following:
+
+```csharp
+using Microsoft.Extensions.Caching.Memory;
+using RazorAPI.Models;
+using System.Collections.Generic;
+using System.Linq;
+namespace RazorAPI.Services
+{
+    public interface ICarService
+    {
+        List<Car> ReadAll();
+        void Create(Car car);
+        Car Read(int id);
+        void Update(Car modofiedCar);
+        void Delete(int id);
+    }
+    public class CarService : ICarService
+    {
+        private readonly IMemoryCache _cache;
+        public CarService(IMemoryCache cache)
+        {
+            _cache = cache;
+        }
+        public List<Car> ReadAll()
+        {
+            if (_cache.Get("CarList") == null)
+            {
+                List<Car> cars = new List<Car>{
+                new Car{Id = 1, Make="Audi",Model="R8",Year=2014,Doors=2,Colour="Red",Price=79995},
+                new Car{Id = 2, Make="Aston Martin",Model="Rapide",Year=2010,Doors=2,Colour="Black",Price=54995},
+                new Car{Id = 3, Make="Porsche",Model=" 911 991",Year=2016,Doors=2,Colour="White",Price=155000},
+                new Car{Id = 4, Make="Mercedes-Benz",Model="GLE 63S",Year=2017,Doors=5,Colour="Blue",Price=83995},
+                new Car{Id = 5, Make="BMW",Model="X6 M",Year=2016,Doors=5,Colour="Silver",Price=62995},
+            };
+                _cache.Set("CarList", cars);
+            }
+            return _cache.Get<List<Car>>("CarList");
+        }
+        public void Create(Car car)
+        {
+            var cars = ReadAll();
+            car.Id = cars.Max(c => c.Id) + 1;
+            cars.Add(car);
+            _cache.Set("CarList", cars);
+        }
+        public Car Read(int id)
+        {
+            return ReadAll().Single(c => c.Id == id);
+        }
+        public void Update(Car modifiedCar)
+        {
+            var cars = ReadAll();
+            var car = cars.Single(c => c.Id == modifiedCar.Id);
+            car.Make = modifiedCar.Make;
+            car.Model = modifiedCar.Model;
+            car.Doors = modifiedCar.Doors;
+            car.Colour = modifiedCar.Colour;
+            car.Year = modifiedCar.Year;
+            _cache.Set("CarList", cars);
+        }
+        public void Delete(int id)
+        {
+            var cars = ReadAll();
+            var deletedCar = cars.Single(c => c.Id == id);
+            cars.Remove(deletedCar);
+            _cache.Set("CarList", cars);
+        }
+    }
+}
+```
+
+This represents a simple CURD service for the Car entity defined in the Model. All it does is to store a list of Car entities in memory, and provide some methods for accessing one or all of the entries, and for adding, editing and deleting Car entities. It also exposes an interface that needs to be registered with the dependency injection system.
+
+4. Open Startup.cs and amend the ConfigureServices method so that it looks like following:
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddMvc();
+    services.AddMemoryCache();
+    services.AddTransient<ICarService, CarService>();
+}
+
+```
+You will also need to add using RazorAPI.Services to the using directives at the top of the file to bring the CarService into scope.
+
+The CarService is registered with the DI system along with the default memory cache component.
+
+5. Change the existing Pages.Index.cshtml.cs file content to the following:
+
+```csharp
+using Microsoft.AspNetCore.Mvc.RazorPages;
+namespace RazorAPI.Pages
+{
+    public class IndexModel : PageModel
+    {
+        public int Id { get; set; }
+        public string Make { get; set; }
+        public string Model { get; set; }
+        public int Year { get; set; }
+        public string Colour { get; set; }
+        public int Doors { get; set; }
+        public int Price { get; set; }
+    }
+}
+```
+
+These properties have been added so that tag helpers can be used for form fields in the UI. Usually, you would decorate properties that are used for form fields with the [BindProperty] attribute, but the form in question will not be posted normally and Razor Pages model binding is not required.
+
+6. Adjust the _Layout.cshtml file to remove the navigation:
+
+```csharp
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="container">
+        <div class="navbar-header">
+            <a asp-page="/Index" class="navbar-brand">RazorAPI</a>
+        </div>
+    </div>
+</nav>
+<div class="container body-content">
+    @RenderBody()
+    <hr />
+    <footer>
+        <p>&copy; 2017 - RazorAPI</p>
+    </footer>
+</div>
+```
+
+You can also take this opportunity to delete the Contact and About pages and their PageModel class files.
+
+7. Add the following to the content of the Index.cshtml file:
+
+```csharp
+<div class="row" id="content">
+    <div class="col-lg-6">
+        <h3>All Cars</h3>
+        <ul id="car-list"></ul>
+        <button class="btn btn-sm btn-default" id="new">Add New</button>
+    </div>
+    <div class="col-lg-6">
+        <div id="details"></div>
+        <div id="form">
+            <form class="form-horizontal">
+                <input type="hidden" asp-for="Id" />
+                <div class="form-group">
+                    <label for="Model">Make</label>
+                    <input type="text" asp-for="Make" class="form-control input-sm" />
+                </div>
+                <div class="form-group">
+                    <label for="Model">Model</label>
+                    <input type="text" asp-for="Model" class="form-control input-sm" />
+                </div>
+                <div class="form-group">
+                    <label for="Colour">Colour</label>
+                    <input type="text" asp-for="Colour" class="form-control input-sm" />
+                </div>
+                <div class="form-group">
+                    <label for="Year">Year</label>
+                    <input type="number" asp-for="Year" class="form-control input-sm" />
+                </div>
+                <div class="form-group">
+                    <label for="Doors">Doors</label>
+                    <input type="number" asp-for="Doors" class="form-control input-sm" />
+                </div>
+                <div class="form-group">
+                    <label for="Price">Price</label>
+                    <input type="number" asp-for="Price" class="form-control input-sm" />
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-primary btn-sm" id="save">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+```
+
+The markup includes an area where a list of cars will be displayed, another where details of a selected car are shown, and a form for adding and editing cars. The method (POST, GET, PUT etc) of the form is not specified. This will be determined at runtime by client side code.
+
+8. Add the following declarations to the site.css file:
+
+```css
+input{
+    max-width:280px;
+}
+.entry {
+    min-width: 250px;
+    display: inline-block;
+}
+.details, .edit, .delete {
+    cursor: pointer;
+    color: #337ab7;
+    text-decoration: underline;
+}
+ul{
+    padding-left:0;
+    list-style-type: none;
+}
+#content{
+    min-height:500px;
+}
+
+```
+
+9. Add a new folder called Controllers and then use the Add context menu option in Visual Studio to add a Web API controller with Read/Write actions and name it CarController.cs:
+
+![scaffold](assets/55.png)
+
+This will auto-generate a class with the following attributes:
+
+```csharp
+[Produces("application/json")]
+[Route("api/Car")]
+public class CarController : Controller
+{
+}
+```
+
+The Produces attribute specifies the content type of the data that the controller actions generate. The default is JSON. The Route attribute specifies the route for the controller. Individual actions are selected using a combination of the HTTP verb used for the request and any parameters.
+
+The next step is to replace the default actions that return strings to ones that call methods in the CarService.
+
+10. Replace the existing controller code with the following:
+
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using RazorAPI.Models;
+using RazorAPI.Services;
+using System.Collections.Generic;
+namespace RazorAPI.Controllers
+{
+    [Produces("application/json")]
+    [Route("api/Car")]
+    public class CarController : Controller
+    {
+        private readonly ICarService _carService;
+        public CarController(ICarService carService)
+        {
+            _carService = carService;
+        }
+        // GET: api/Car
+        [HttpGet]
+        public IEnumerable<Car> Get()
+        {
+            return _carService.ReadAll();
+        }
+        // GET: api/Car/5
+        [HttpGet("{id}", Name = "Get")]
+        public Car Get(int id)
+        {
+            return _carService.Read(id);
+        }
+        // POST: api/Car
+        [HttpPost]
+        public void Post([FromBody]Car car)
+        {
+            _carService.Create(car);
+        }
+        // PUT: api/Car/5
+        [HttpPut("{id}")]
+        public void Put(int id, [FromBody]Car car)
+        {
+            _carService.Update(car);
+        }
+        // DELETE: api/ApiWithActions/5
+        [HttpDelete("{id}")]
+        public void Delete(int id)
+        {
+            _carService.Delete(id);
+        }
+    }
+}
+```
+The controller exposes 5 methods: Get with no parameters, returning all cars; Get with an integer as a parameter, returning the car with an Id value matching the one passed as a parameter; Post taking values from the body of the request to construct a new Car entity; Put which is used to modify the car identified by the id parameter with the values passed in the request body; and Delete which deletes the car having the Id passed as a parameter.
+
+The CarService that actually manages these operations is passed in to the controller via constructor injection.
+
+11. Finally, the client side code. Add the following to the end of the Index.cshtml file:
+
+```html
+@section scripts{
+<script type="text/javascript">
+    $(function () {
+        var loadCars = function () {
+            $('#car-list').empty();
+            $.get('/api/car').done(function (cars) {
+                $.each(cars, function (i, car) {
+                    var item = `<li>
+                            <span class="entry">
+                                <strong>${car.make} ${car.model}</strong>
+                                (£${car.price})
+                                </span>
+                                <span class ="details" data-id="${car.id}">Details</span> |
+                                <span class ="edit"  data-id="${car.id}">Edit</span> |
+                                <span class ="delete"  data-id="${car.id}">Delete</span>
+                            </li>`;
+                    $('#car-list').append(item);
+                });
+            });
+        }
+        var showForm = function () {
+            $(':input').val('');
+            $('#details').empty();
+            $('#form').show();
+        }
+        var clearForm = function () {
+            $('#details').empty();
+            $(':input').val('');
+            $('#form').hide();
+        }
+        $('#new').on('click', showForm);
+        clearForm();
+        loadCars();
+        $('#car-list').on('click', '.edit, .details', function () {
+            var cmd = $(this);
+            $.get(`/api/car/${cmd.data('id')}`).done(function (car) {
+                if (cmd.hasClass('details')) {
+                    clearForm()
+                    $('#details').empty().append(
+                        `<h3>Details</h3>
+                    <strong>${car.make} ${car.model}</strong><br>
+                    £${car.price}<br>
+                    Doors: ${car.doors}<br>
+                    Year: ${car.year}<br>
+                    Colour: ${car.colour}`
+                    );
+                } else {
+                    showForm();
+                    $('#Id').val(car.id);
+                    $('#Make').val(car.make);
+                    $('#Model').val(car.model);
+                    $('#Colour').val(car.colour);
+                    $('#Year').val(car.year);
+                    $('#Doors').val(car.doors);
+                    $('#Price').val(car.price);
+                }
+            });
+        });
+        $('#save').on('click', function (e) {
+            e.preventDefault();
+            var url = '/api/car/';
+            var method = 'post';
+            if ($('#Id').val() !== '') {
+                url += $('#Id').val();
+                method = 'put';
+            }
+            var car = {};
+            $.each($(this).closest('form').serializeArray(), function () {
+                if (this.name !== 'Id' || (this.name === 'Id' && this.value !== '')) {
+                    car[this.name] = this.value || '';
+                }
+            });
+            $.ajax({
+                type: method,
+                url: url,
+                data: JSON.stringify(car),
+                contentType: 'application/json'
+            }).done(function () {
+                clearForm();
+                loadCars();
+            });
+        });
+        $('#car-list').on('click', '.delete', function () {
+            $.ajax({
+                type: 'delete',
+                url: '/api/car/' + $(this).data('id'),
+            }).done(function () {
+                clearForm();
+                loadCars();
+            });
+        });
+    });
+</script>
+}
+```
+
+The first section of the code declares a function called loadCars. This function clears the ul that has an id of car-list of any content and then calls the API using the GET verb with no parameters which maps to the method that returns a list of all cars. The HTML for the list items is built up using the jQuery each function to iterate the collection of cars returned by the API.
+
+Notice that the JSON version of the property names on the car object use camel casing (start with lower case). This is the default behaviour when serialising to JSON in .NET Core. In previous versions of ASP.NET, the default was Pascal casing. You can restore this option through configuration:
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddMvc()
+        .AddJsonOptions(options => options.SerializerSettings.ContractResolver = new DefaultContractResolver());
+}
+```
+
+The resulting HTML consists of a series of list items that include links to show details of the entry, edit it or delete it.
+
+Next, two convenience functions are defined that show and hide the form so that it is ready for use and doesn't retain information from previous operations. The Add New button is wired up to show the form when it is clicked. Then the functions to clear the form and hide it, and to populate the list are called, resulting in the following content in the page:
+
+![GetAll](assets/56.png)
+
+The Edit and Details links have click handlers attached to them that fire a GET request appended with the Id of the car that they apply to which returns the specified car entity. If the link that was clicked is a details link (determined by the CSS class applied to it), the details of the car are displayed, otherwise they are presented in the form for editing.
+
+When the form is submitted, the hidden Id field is inspected. If it was populated as a result of the Edit link being clicked, the HTTP method is set to PUT and the Id of the car to be modified is appended to the URL, mapping this request to the [HttpPut("{id}")] Web API route. If it is empty, this is a new car and the method is set to POST.
+
+In both cases, the content of the form fields is serialised into a Javascript object:
+
+```csharp
+var car = {};
+$.each($(this).closest('form').serializeArray(), function () {
+    if (this.name !== 'Id' || (this.name === 'Id' && this.value !== '')) {
+        car[this.name] = this.value || '';
+    }
+});
+```
+
+The Id property is only included in the serialised object if it has a value.
+
+The content type is specified for the request as application/json. Failure to do this will result in an HTTP 415 - Unsupported Media Type error code because the content type of the request will default to application/x-www-form-urlencoded:
+
+
+![header](assets/57.png)
+
+If you actually want to support application/x-www-form-urlencoded, you need to change the Web API method to use the [FromForm] attribute instead of the [FromBody] attribute. When the FromBody option is specified, the framework uses a JSON Input Formatter which expects to find a JSON string in the body of the request:
+
+
+![Request](assets/58.png)
+
+The final block of code takes care of deleting car objects. It adds the Id of the car to be deleted to the URL and then uses the DELETE method:
+
+![deleterequestheader](assets/59.png)
+
 #### Scaffolding
 #### Publishing To IIS
 #### Advanced
