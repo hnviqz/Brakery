@@ -6322,7 +6322,15 @@ The next examples shows how to generate a Create page for an entity that include
 `dotnet aspnet-codegenerator razorpage Empty Empty -outDir Pages\Product`
 
 
-
-
 #### Publishing To IIS
+
+##### Publishing and deploying a Razor Pages application to IIS on Windows
+
+One you have built your Razor Pages application,it needs to be published and deployed to a hosting platform.This tutorial will examine the steps required to deploy a Razor Pages application to a Windows Server running Microsoft's Internet Information Services (IIS) web server software.
+
+##### Publishing
+
+Publishing is the process that prepares your application for deployment.The publishing process compiles the source code files into assemblies with a.dll extension.Typically,the process will generate two  assemblies - one for the project (MyProject.dll) and one for the views (MyProject.Views.dll)
+
+
 #### Advanced
