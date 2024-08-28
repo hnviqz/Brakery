@@ -6728,4 +6728,82 @@ services.Configure<CookieTempDataProviderOptions>(options=>
 
 ##### Session State
 
-Most browsers limit the size of cookies
+Most browsers limit the size of cookies and therefore the data that can be stored in them.If you exceed this limit,you will get a 400 HTTP Error code:The size of the request headers is too long.If you need to store large amounts of data in TempData,you can use the session provider instead.The three steps to implement this are:
+
+1. Call the AddSessionStateTempDataProvider method in ConfigureServices (chained to AddMvc below)
+2. Call AddSession in ConfigureServices
+3. Call app.UseSession in the Configure method
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddMvc().AddSessionStateTempDataProvider();
+    services.AddSession();
+}
+
+public void Configure(IApplicationBuilder app,IHostingEnvironment env)
+{
+    app.UseStaticFiles();
+    app.UseSession();
+    app.UseMvc(routes=>{
+        routes.MapRoute(
+            name:"default",
+            template:"{controller}/{action=Index}/{id?}"
+        );
+    });
+}
+```
+
+##### Limitations
+
+You can store simple values in TempData - strings,booleans and numeric types,but if you try to store complex types,you will encounter an InvalidOperationException:
+
+> The '[name of the property]' property with TempDataAttribute is invalid.The 'Microsoft.AspNetCore.Mvc.ViewFeatures.Internal.TempDataSerializer' cannot serialize an object of type '[name of the property]'.
+
+If you want to use TempData to store complex types,you must serialize it to a string-based format yourself.JSON is the recommended format to use because it is relatively compact (compared to XML) and JSON.NET is included as part of the default project template.
+
+The following class contains two extension methods: one for serialising data to JSON and the other for deserialising it:
+
+```csharp
+public static class TempDataExtensions
+{
+    public static void Set<T>(this ITempDataDictionary tempData,string key, T value) where T : class
+    {
+        tempData[key] = JsonConvert.SerializeObject(value);
+    }
+
+    public static T Get<T>(this ITempDataDictionary tempData,string key) where T : class
+    {
+        tempData.TryGetValue(key,out object o);
+        return o == null ? null : JsonConvert.DeserializeObject<T>((string)o);
+    }    
+}
+```
+
+Usage is straightforward.The second line sets a  TempData entry, and the third retrieves it:
+
+```csharp
+var contact = new Contact {FirstName="Mike",Domain="learnrazorpages.com"};
+TempData.Set("Mike",contact);
+var mike = TempData.Get<Contact>("Mike");
+```
+
+##### TempData And Model Binding 
+
+Model Binding  and TempData conflict  with each other in the sense that they both provide a mechanism to populate page properties with values from an HTTP request.One must execute after the other,and the default behaviour is that TempData population takes place after model binding.There is nothing to stop you decorating a page property with both the BindProperty and TempData attributes:
+
+```csharp
+[BindProperty,TempData]
+public string Foo{get;set;}
+
+```
+However,any posted form value that is bound to the property will be overwritten by whatever is in TempData,which is usually nothing,or null.If you need to assign a model bound value to TempData,you should make the assignment manually:
+
+```csharp
+[BindProperty]
+public string Foo{get;set;}
+public void OnPost()
+{
+    TempData["Foo"] = Foo;
+}
+```
