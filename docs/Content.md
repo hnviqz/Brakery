@@ -6451,8 +6451,153 @@ Once you have the value of base64Image,set it as the src of an <img> element usi
 ```
 Note that the media type is set to image/png in the example above.That should be altered to reflect the media (or mime) type of the original image you want to embed.
 
+##### Including Static Content in the Root Folder
+
+Static content added to the root of a Razor Pages application is not automatically included in the published output.You might create folders to contain MarkDown or data files, for example, that you don't want your visitors to be able to browse directly,or you might add an app_offline.htm file to the root of your application.If you want to ensure that such contents are included in the published output,you must add specific entries to the application's .csproj file.
+
+The following entry ensures that a folder named MyFolder is included in the published output:
+
+```xml
+<ItemGroup>
+    <Content Include="MyFolder\**\*" CopyToPublishDirectory="PreserveNewest" />
+</ItemGroup>
+```
+
+If you want to include only certain items,you can use file matching patterns.This example uses the recursive wildcard file matching pattern to specify that all contents of the given directory and its subdirectories should be included.The next example specifies that only MarkDown files in the specified directory hierarchy should be included:
+
+```xml
+<ItemGroup>
+    <Content Include="MyFolder\**\*.md" CopyToPublishDirectory="PreserveNewest" />
+</ItemGroup>
+```
+
+You can also choose to exclude items.This example results in all items in the MyFolder structure except .txt files being published:
+
+```xml
+<ItemGroup>
+    <Content Include="MyFolder\**\*" CopyToPublishDirectory="PreserveNewest" />
+    <Content Remove="MyFolder\**\*.txt" />
+</ItemGroup>
+```
+
+You can include multiple items by either creating a separate entry for each,or by providing a comma-separated list:
+
+```xml
+<ItemGroup>
+    <Content Include="MyFolder\**\*;MySecondFolder\**\*;MyThirdFolder\**\*.db" CopyToPublishDirectory="PreserveNewest" />
+</ItemGroup>
+```
+
+Finally, this example includes a file named app_offline.html in the published output:
+
+```xml
+<ItemGroup>
+    <Content Include="app_offline.html" CopyToPublishDirectory="PreserveNewest" />
+</ItemGroup>
+```
+
+Note that the file extension has an additional l appended.This has the effect of ensuring that the app_offline file doesn't actually take the application offline when it is uploaded as part of the application files (or indeed when you try to run the site locally against IIS [Express]).
+
+##### Troubleshooting
+
+###### Non-supported framework versions
+
+One of the USPs offered by .NET Core is the fact that you do not have to rely on your hosting company installing the latest version of the framework on the hosting server in order to take advantage of it.This means that you can target any version of the framework you like.So when a newer version is released that contains features or bug fixes that you need,you can simply target it.However,if you deploy an application that targets a runtime version that isn't supported by the hosting server,you will get errors along the lines of:
+
+> Error: An assembly specified in the application dependencies manifest (xxx.deps.json) was not found:package:'Microsoft.ApplicationInsight.AspNetCore',version'xxx'...This assembly was expected to be in the local runtime store as the application was published using the following target manifest files:...
 
 
+By default,the publish operation employs a process known as Runtime Store Trimming,whereby dependencies that form part of the .NET Core runtime are not included in the published output.The error therefore arises because items specified in the MyApp.deps.json file are not present on the hosting server.
+
+There are four possible solutions to this problem:
+
+1. Install the relevant version of SDK on the server (which also installs the runtime store package)
+2. Install just the Runtime Store Package on the target server (you can get that by locating the correct version of .NET Core here)
+3. Amend the .csproj file to include the following entry which disables runtime store trimming:
+
+```xml
+<PropertyGroup>
+    <PublishWithAspNetCoreTargetManifest>false</PublishWithAspNetCoreTargetManifest>
+</PropertyGroup>
+```
+
+1. Use the following (undocumented) property option when publishing via the CLI:
+
+`dotnet publish -o c:\publish\myApp -c release /property:PublishWithAspNetCoreTargetManifest=false`
+
+The third and fourth options will result in the entire contents of the runtime store being included with the published output - about 200 files and folders at around 40MB.All of this will need to be included in the files uploaded to the hosting server.
+
+##### HTTP Error 502.5 Process Failure
+
+Having deployed the application to IIS and tried to run it,you may receive an HTTP 502.5 error code, which tells you that the application failed to start.However,the browser message fails to provide any further clues as to the reason.The server's event log might provide further information:
+
+> Application 'MACHINE/WEBROOT/APPHOST/[AppName]' with physical root '[path_to_application]' failed to start process with commandline 'dotnet .[AppName].dll', ErrorCode='0x80004005:80008083'
+
+This still doesn't tell you much,except that 0x80004005 is a general error code indicating missing files or those that can't be accessed currently.Subcode 80008083 indicates a version conflict.So it looks like there is a problem with the version of the .NET Core runtime that the application targets,and those available on the hosting server in the folder where the application's dll resides, and attempting to start the application:
+
+`dotnet AppName.dll`
+
+If the problem is caused by version conflict,the new error message will look like this
+
+> It was not possible to find any compatible framework version The specified framework 'Microsoft.AspNetCore.App', version 'x.x.x' was not found.
+> - Check application dependencies and target a framework version installed at:\
+> Alternatively,install the framework version 'x.x.x'.
+
+The solution is to either re-target the appliction to a version of the framework that exists on the hosting server (which can be checked by the dotnet --version command) or to ensure that the correct version of the framework is installed.
+
+##### Enable stdout Logging
+
+If you haven't already incorporated logging within the application,enabling basic logging provides an easy way to get full details of startup errors within the deployed application.A web.config file is generated as part of the published output:
+
+```xml
+<?xml version="1.0" encoding="utf-8" ?>
+<configuration>
+    <location path="." inheritInChildApplications="false">
+        <system.webServer>
+            <handlers>
+                <add name="aspNetCore" path="*" verb="*" modules="AspNetCoreModuleV2" resourceType="Unspecified" />
+            </handlers>
+            <aspNetCore processPath=".\MyApp.exe" stdoutLogEnabled="false" stdoutLogFile=".\logs\stdout" hostingModel="InProcess" />
+        </system.webServer>
+    </location>
+</configuration>
+```
+
+By simply changing stdoutLogEnabled to true, text-based log files will be generated to a folder named logs in the root of the application.The folder will be created if one doesn't exist already.
+
+> :warning: You should disable stdout logging once any errors have been resolved.It should not be used for routine logging.You should use a third party library that incorporates log file management.
+
+##### Fixing the SDK version Used For Publishing 
+
+The <TargetFramework> node in your application's .csproj file specifies the version of the .NET framework that your application targets.However,this does not prevent your application being built or published against a newer version of the framework.Generally,dotnet commands such as build,publish etc will be executed by the latest version of the .NET Core SDK that is installed on the machine.This can result in a published application referencing dependencies that don't exist on a hosting server.
+
+To prevent accidentally building and publishing your application against a newer version of the .NET Core SDK that is supported by your host,you can fix the version that your application targets.You do this by adding a global.json file to the directory structure of the project.This can either be placed in the folder containing the .csproj file,or any of its parent folders.
+
+The global.json file has an sdk node which is used to specify the version of the .NET Core SDK to use when executing commands against the project (including publishing). The following example fixes the version at 2.1.402:
+
+```json
+{
+    "sdk":{
+        "version":"2.1.402"
+    }
+}
+```
+
+You can use the dotnet CLI to generate a global.json file.Navigate to the folder in which you want to create the file,and type the following command:
+
+`dotnet new globaljson --sdk-version 2.1.402`
+
+Alternatively,you can specify the location for the file using the --output (or -o) switch:
+
+`dotnew new globaljson --sdk-version 2.1.402 -o c:\MyApp`
+
+You can obtain the versions of the SDK that are available on a specific machine by executing the following dotnet command:
+
+`dotnet --list-sdks`
+
+The following command produces a list of the available runtimes on a specific machine:
+
+`dotnet --list-runtimes`
 
 
 
