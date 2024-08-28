@@ -6599,6 +6599,133 @@ The following command produces a list of the available runtimes on a specific ma
 
 `dotnet --list-runtimes`
 
-
-
 #### Advanced
+
+
+##### TempData In Razor Pages
+
+TempData is a storage container for data that needs to be available to a separate HTTP request.The cannonical example for illustrating how TempData works involves providing feedback to the user after a form submission that results in the user being redirected to another page (Post-Redirect-Get).
+
+Here is a very simple form:
+
+```html
+<form method="post">
+    <input type="text" asp-for="EmailAddress" />
+    <span asp-validation-for="EmailAddress"></span><br />
+
+    <button>Submit</button>
+
+</form>
+```
+
+In the following code snippet,a PageModel property called FormResult has been decorated with the TempData attribute,which enables both automatic storing of values in,and loading values from the TempData dictionary.
+
+```csharp
+public class IndexModel:PageModel
+{
+    [TempData]
+    public string FormResult {get;set;}
+    [BindProperty]
+    public string EmailAddress {get;set;}
+}
+```
+
+The property has a value assigned to it when the form is posted.
+
+```csharp
+public IActionResult OnPost()
+{
+    try{
+        var email = new MailAddress(EmailAddress);
+        FormResult = "You have provided a valid email address";
+        return RedirectToPage("/success");
+    }
+    catch(FormatException)
+    {
+        ModelState.AddModelError("EmailAddress","Invalid email address");
+        return Page();
+    }
+}
+```
+
+If the validation test passes, the user is redirected to another page (success.cshtml).There,the TempData value is accessed using a string indexer:
+
+```html
+<h4>@TempData["FormResult"]</h4>
+```
+Alternatively,you can add a property to the SuccessPageModel,decorated with the TempData attribute:
+
+```csharp
+public class SuccessPageModel : PageModel
+{
+    [TempData]
+    public string FormResult {get;set;}
+}
+```
+
+Then you can more simply reference the model property in the page itself:
+
+`<h4>@Model.FormResult</h4>`
+
+> **Note**
+>
+> In ASP.NET Core 2.0 (and earlier versions if you are using MVC), the index value is prefixed with "TempDataProperty-",so you would have to use the following code to access the value:
+>
+> `<h4>@TempData["TempDataProperty-FormResult"]</h4>`
+> If you want to change this behaviour in ASP.NET Core 2.0, you can use the MvcOptions to change the default behaviour:
+>
+> ```csharp
+> services.AddMvc().AddViewOptions(options=>{
+>   options.SuppressTempDataAttributePrefix = true;
+> });
+> ```
+
+Once the value has been read,it is marked for deletion and is therefore not available for subsequent requests.
+
+##### Retaining TempData Values
+
+If you want to access a TempData value and then retain it for a further request,you have two options.The first is the Peek method,which allows you to read a value without it being marked for deletion:
+
+```csharp
+var temp = TempData.Peek("FormResult");
+```
+
+The second option is to use the Keep method after you have accessed the value.This has the effect of marking the value for retention.The Keep method provides two options.You can either specify that the whole dictionary is retained:
+
+```csharp
+var result = TempData["FormResult"];
+TempData.Keep();
+```
+
+Or you can just mark individual values for retention:
+
+```csharp
+var result = TempData["FormResult"];
+TempData.Keep("FormResult");
+```
+
+##### Storage Mechanisms
+
+The default storage mechanism for TempData is cookies,which is enabled by default in a typical Razor Pages application.
+
+![storagemechanisms](assets/70.png)
+
+Alternatively,you can use Session State.
+
+##### Cookie Configuration
+
+You can configure various options related to the TempData cookie in the ConfigureServices method.The following example changes the name of the cookie:
+
+```csharp
+
+services.Configure<CookieTempDataProviderOptions>(options=>
+{
+    options.Cookie.Name = "MyTempDataCookie";
+});
+```
+
+![cookie](assets/71.png)
+
+##### Session State
+
+Most browsers limit the size of cookies
