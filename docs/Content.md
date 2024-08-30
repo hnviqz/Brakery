@@ -82,6 +82,35 @@ The application you will build is inspired by the ASP.NET Web Pages Bakery templ
 - creating and processing forms
 - sending email
 
+![Bakery](assets/1.jpg)
+
+In this series,the Razor Pages version of the application includes a look at many more framework features,as well as sections on incorporating other technologies such as Sass and TypeScript.
+
+The steps are as follows:
+
+- Getting started
+- Creating the application
+- Adding a new page
+- Working with navigation
+- Creating the model
+- Adding a migration
+- Working with data
+- Enabling Sass
+- Starting with forms
+- Working with TypeScript
+- Using cookies
+- Creating view components
+- Adding email
+- Using scaffolding
+- Uploading Files
+
+You will build the application with Visual studio code - an open source code editor produced by Microsoft with the help of contributions from the developer community.Data will be stored in a relational SQLite database.Both of these choices enjoy the benefits of being cross-platform and relatively easy to use,which helps to make this series accessible to developers of all abilities on any platform.
+
+This app will be built using the ASP.NET Core web development framework which is included as part of .NET,and Entity Framework Core,an Object Relational Mapper developed by Microsoft.This version of the tutorial use .NET 7.0,which is a Standard Term Support(STS) release of .NET.As such,it is supported for 18 months after its release date.Long Term Release (LTS) versions of the framework are supported for 3 years after their release date.Most often,upgrading from one version of the framework to another is as simple as changing a few numbers in a project file.More of that later.
+
+ASP.NET Core is the cross-platform web development framework provided by Microsoft.It has its roots in the ASP.NET framework which was launched at the beginning of the century,and as such,is a battle-tested,full-featured mature framework.Razor Pages,introduced in 2017,forms part of ASP.NET Core and is the recommended option from Microsoft for creating server-side web applications,i.e.those where the processing and rendering of HTML take place on the web server (as opposed to within the browser).
+
+
 
 #### Razor Pages Files
 #### Razor Syntax
@@ -6807,3 +6836,187 @@ public void OnPost()
     TempData["Foo"] = Foo;
 }
 ```
+
+##### Session State in Razor Pages
+
+Session state is a mechanism that enables you to store and retrieve user specific values temporarily.These values can be stored for the duration of the visitor's session on your site.In most cases,they are stored in server memory,although options exist for using persistent and/or distributed storage mechanisms if,for example,you are using multiple web servers for your application (web farm etc).
+
+##### Enabling Session State 
+
+Session management in ASP.NET Core is included in the Microsoft.AspNetCore.All metapackage,but is not enable by default.You enable Session State in the Startup file:
+
+```csharp
+public void ConfigureServices(IServiceCollection  services)
+{
+    services.AddSession();
+    services.AddMemoryCache();
+    services.AddMvc();
+}
+
+public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+{
+    app.UseStaticFiles();
+    app.UseSession();
+    app.UseMvc(routes=>{
+        routes.MapRoute(
+            name:"default",
+            template:"{controller}/{action=Index}/{id?}"
+        );
+    });
+}
+```
+
+> :information_source: Note the use of the AddMemoryCache method in ConfigureServices.Session data needs a store.AddMemoryCache activates a local memory-based store,which is fine for most applications deployed to a single server.They are volatile,and can be cleared out by processes external to your site (server restarts,application pool recycling etc) so you should always test for the presence of your expected values.If your site is to be deployed to multiple servers,you should use a distributed cache implementation instead.Distributed caches use a centralised data store to ensure that the same values are available to all application servers.The SQL Server Distributed cache system uses a SQL Server database.Other systems may use memory,like the open source Redis and Memcached solutions.
+
+##### Configuring Sessions
+
+Once enabled,a session begins when the user first visits the site,and lasts for 20 minutes after the last activity from the user at which point the contents of the session are abandoned.The duration is controlled by the IdleTimeout option,which can be configured in ConfigureServices:
+
+```csharp
+services.AddSession(options=>{
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
+});
+```
+Every time the session is accessed,the timeout is reset.
+
+Another option related to timeouts is the IOTimeout option.This controls the maximum amount of time to allow for the successful getting or setting of a session asynchronously,and is therefore applicable mainly to the use of distributed caches.The default value is 1 minute.
+
+##### Using Session Variables
+
+The Session API offers three methods for setting session values: SetInt32,SetString and Set,which takes a byte array as an argument.The session framework stores items as byte arrays to ensure that session values are serialisable,primarily for storage on remote servers.Internally,the SetInt and SetString methods convert the supplied values to a byte array.Here is the actual implementation of the SetString method:
+
+```csharp
+public static void SetString(this ISession session,string key,string value)
+{
+    session.Set(key,Encoding.UTF8.GetBytes(value));
+}
+```
+
+You need to add a reference to Microsoft.AspNetCore.Http to be able to work with session.The following examples illustrate various ways to set session values:
+
+```csharp
+public void OnGet()
+{
+    HttpContext.Session.SetString("Test String","1");
+    HttpContext.Session.SetInt32("Test Int",1);
+    HttpContext.Session.Set("Test Byte Array",BitConverter.GetBytes(true)); //boolean as byte array
+}
+
+```
+
+And here's how you might retrieve those values to be passed to a View:
+
+```csharp
+public void OnPost()
+{
+    ViewData["Test String"] = HttpContext.Session.GetString("Test String");
+    ViewData["Test Int"] = HttpContext.Session.GetInt32("Test Int");
+    ViewData["Test Byte Array"],BitConverter.ToBoolean(HttpContext.Session.Get("Test Byte Array"),0);
+}
+```
+
+All of the Get method along with the GetString and GetInt32 methods return null if no value has been set for the referenced key, or if the value has been cleared for any reason.If that happens to the Test Byte Array value,the BitConverter.ToBoolean method call will result in an ArgumentNullException.You should test for this before attempting any further operations:
+
+```csharp
+public void OnPost()
+{
+    if(HttpContext.Session.Get("Test Byte Array") != null)
+    {
+        ViewData["Test Byte Array"],BitConverter.ToBoolean(HttpContext.Session.Get("Test Byte Array"),0);
+    }
+}
+```
+
+You can also use the TryGetValue method to achieve the same result in a cleaner way:
+
+```csharp
+public void OnPost()
+{
+    if(HttpContext.Session.TryGetValue("Test Byte Array",out byte[] result))
+    {
+        ViewData["Test Byte Array"] = BitConverter.ToBoolean(result,0);
+    }
+}
+```
+
+##### Working with other types
+
+As has been shown,when setting non-string or int values as session variables,you need to take care of serialisation to byte arrays yourself.You could do this at the point of setting values as illustrated earlier,but a more reusable approach can be achieved by creating your own extension methods on ISession.The following example shows how you might implement methods for getting and setting boolean values as session variables:
+
+```csharp
+public static class SessionExtensions
+{
+    public static bool? GetBoolean(this ISession session, string key)
+    {
+        var data = session.Get(key);
+        if(data==null)
+        {
+            return null;
+        }
+        return BitConverter.ToBoolean(data,0);
+    }
+
+    public static void SetBoolean(this ISession session,string key,bool value)
+    {
+        session.Set(key,BitConverter.GetBytes(value));
+    }
+}
+```
+
+Now you can use thee methods to set and get boolean values:
+
+```csharp
+public void OnGet()
+{
+    HttpContext.Session.SetString("Test String","1");
+    HttpContext.Session.SetInt32("Test Int",1);
+    HttpContext.Session.SetBoolean("Test Bool",true);
+}
+
+public void OnPost()
+{
+    ViewData["Test String"] = Name = HttpContext.Session.GetString("Test String");
+    ViewData["Test Int"] = HttpContext.Session.GetInt32("Test Int");
+    ViewData["Test Bool"] = HttpContext.Session.GetIntBoolean("Test Bool");
+}
+```
+
+There are two methods of interest if you want to delete session values.One is the Remove method which allows you to delete individual values from the session collection by key:
+
+`HttpContext.Session.Remove("Name");`
+
+The other is the Clear method.This removes all keys and values associated with the session:
+
+`HttpContext.Session.Clear();`
+
+##### Session Cookies
+
+ASP.NET Core uses cookies to tie multiple request together in a session.The cookie options are managed using the Options pattern when configuring sessions:
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddSession(options=>{
+        options.Cookie.Name = "MySessionCookie";
+    });
+}
+```
+
+The full list of properties is as follows:
+
+|Property|DataType|Description|
+|-----|-----|------|
+|Domain|string|The domain(s) that the cookie is accessible to.If it is not specified,the cookie is only sent to the domain of the current document.If provided,all sub-domains are also included.|
+|Expiration|TimeSpan|The expiry time.While it is (currently possible) [https://github.com/aspnet/Security/issues/1293] to set an expiry time for the session cookie,you are advised not to.Session cookies should only last for the duration of the session as governed by the IdleTimeout setting covered at the top of this article.|
+|HttpOnly|bool|Specifies whether the cookie is available to client-side code.false (the default) means that the cookie is accessible to JavaScript, which may present a security risk.If set to true,the cookie is only available to code executing on the server|
+|Name|string|The name of the cookie.The default value is .AspNetCore.Session|
+|Path|string|The relative path that the cookie should be accessible to.If not specified,the cookie is available to all pages in the domain(s).Subdirectories are also included.For example,/account will match/accout,/account/client etc.|
+|SameSite|SameSiteMode enum|Possible values are Lax (default),None,Strict.The SameSite option is intended to help in the prevention of CSRF or cookie hijacking attacks,but it is not supported by all browsers.It therefore should not be relied on.|
+|SecurePolicy|CookieSecurePolicy enum|Specifies the security policy of the cookie.Possible values are Always (Secure is always marked true), None (Secure is not marked true) and SameAsRequest (The default: the cookie will be sent using the protocol of the request).|
+
+
+
+
+
+
+
