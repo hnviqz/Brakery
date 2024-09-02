@@ -215,6 +215,12 @@ Open a browser and navigate to http://localhost:5045. The site should appear lik
 
 At this point,you have used the .NET Core SDK and Visual Studio Code to create a new Razor Pages application.You have reviewed the contents of the project folder,and you have lauched the application in a browser.In the next section,you will add a new page and begin customising the site content.
 
+##### Adding a new page
+
+So far,you have obtained the .NET SDK and chosen a code editor for building a Razor Pages application.You have created a web application from a starter template using the .NET CLI.The web application currently has three pages. It's going to need some more.You will use the templating system to generate an About page,this time with the command `dotnet new page`.
+
+Once you have created the page,you will modify the site's layout file which controls the look and feel of all of the site's content.
+
 
 
 
