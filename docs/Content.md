@@ -110,6 +110,114 @@ This app will be built using the ASP.NET Core web development framework which is
 
 ASP.NET Core is the cross-platform web development framework provided by Microsoft.It has its roots in the ASP.NET framework which was launched at the beginning of the century,and as such,is a battle-tested,full-featured mature framework.Razor Pages,introduced in 2017,forms part of ASP.NET Core and is the recommended option from Microsoft for creating server-side web applications,i.e.those where the processing and rendering of HTML take place on the web server (as opposed to within the browser).
 
+##### Get the Bits
+
+To start,you need a software development kit (SDK) and a code editor.
+
+##### Get the SDK
+
+First,obtain .NET from hrere.You should download the SDK (Software Development Kit),which is needed for building .NET Core applications.The other option - the runtime - is what you would install on a server where you want your ASP.NET Core applications to run.The SDK includes the runtime.
+
+Once installed,use the .NET Command Line Interface (CLI) to confirm which version of the SDK is currently in use by opening a terminal/command prompt and typing the following command:
+
+`dotnet --version`
+
+You can execute `dotnet --help` for a list of other commands available.
+
+##### The code editor
+
+Many .NET developers typically use Visual Studio from Microsoft,an Integrated Development Environment (IDE) that supports a wide range of development activities out of the box.As such,it demands a large footprint (over 6GB for a typical install) and can consume a lot of resources.While a version for the Mac OS exists,it is primarily a Windows-only product.A free version is available for non-commercial use (the Community Edition),which is full featured.Alternatively,JetBrains provide a cross-platform IDE called Rider.They offer a 30-day free trial,but not a free version.
+
+Visual Studio Code is a free,lightweight,open source,cross platform code editor that supports diffent workflows via extensions.Consequently it's footprint is a lot smaller that a full-featured IDE.
+
+Download and install it,then install c# extension,which is needed for C# development.You can locate this by clicking the Extensions icon on the left hand side ![side](assets/2.jpg) and typing "C#" in the search box that appears at the top of the pane.You should also install the C# Extensions extension,which provides templates for adding C# class and interface files.
+
+Now that you have the requisite bits,it's time to create your first Razor Pages application,which you will do in the next section.
+
+> **Bakery Tutorial**
+> This is part of a tutorial series that shows how to build a data-drive web application using Visual Studio Code, ASP.NET Core Razor Pages,Entity Framework Core and SQLite and .NET 7.
+
+##### Create a new Web Application
+
+Once you have installed the .NET SDK,you can use the .NET CLI to generate a starting point for a Razor Pages web application.
+
+1. Create a folder to house your application files.You can do this in any way that you like.You can manually create the folder,and then open it in VS Code,or you can open VS Code and use its integrated terminal to create a directory with the standard `mkdir` command.The terminal in VS Code is accessed by pressing `Ctrl+\`` (or ⌘+' on a Mac).In any event, the folder should be named Bakery.
+2. Open the folder within VS Code.
+3. Ensuring that the terminal's active location is in the Bakery folder,you will use the ASP.NET Core templating system to create the app.Templates are invoked in VS Code by executing `dotnet new` commands in the terminal,followed by the name of the template you want to use and any options.The name of the Razor Pages web application template is webapp.You see all of the other available templates by typing `dotnet new list`. So create the new Razor Pages application with the following command:
+
+`dotnet new webapp`
+
+Note that the command `dotnet new razor` will also result in a Razor Pages project being created.
+
+> **IMPORTANT**
+> The project takes its name from the folder in which it is created.Ideally,you want this to be "Bakery" with a capital "B".That wawy,if you want to copy and paste code from this series into the project that you create,you will minimise the possibility of errors creeping in via mixing the case of the project namespace.If you use the terminal to navigate to the Bakery folder once it has been created and use all lowercase (e.g. `cd c:\bakery`),the resulting project - and its default namespace - will have a lowercase "b".
+
+Once you have created the application,the `dotnet restore` command is automatically executed.This results in dependencies and tools required by the project being restored.If this is your first .NET Core application,this command can take a little while to complete while the relevant packages are obtained from the Nuget package manager and stored locally on your machine.Once completed,you can open the Bakery folder from within VS Code to see the files and folders that were created.
+
+4. At this point,you will probably be prompted to add missing assets required to build and debug the project:
+
+![missingassets](assets/72.png)
+
+Click **Yes**.
+
+##### The File and Folders
+
+Before moving on,we shall review the files and folders that the template generated:
+
+![Bakery](assets/73.png)
+
+- The .vscode folder was generated when you clicked **Yes** in the previous step. It contains files that provide configuration for debugging the application.
+- The bin folder contains the output of a Build operation - the compiled binaries for the application.There is nothing much there at the moment - just a folder named Debug containing another folder named net7.0. The application has not been compiled (built) yet.That will happen soon.
+- The obj folder contains a variety of files. You will hardly ever need to access this folder,except to perhaps delete its contents entirely. It is used by the framework as a place to store temporary files and other objects used in the build process.
+- The Properties folder contains a file called lanchSettings.json. This is a configuration file for launching the application in a browser.
+- The root of the application consists of 5 files.There are two JSON files named appsettings.These contain application-specific configuration information.Currently,they contain basic logging and host filtering configuration.Later,you will use appSettings to store database and email configuration,The version with Development in its name will only be used when the application is running in development mode.
+- The .csproj file is the standard **MS Build XML-based project file**. It contains project settings and references to files used by the project.MS Build uses this file to configure the actual build process of the application.
+- All ASP.NET Core applications are actually .NET console applications. The default entry point into any console application is the Main method in the Program class found in the Program.cs file.The Main method in this case along with the class definition are absent as a result of a feature added to .NET 6 referred to as a **minimal hosting model**. The Program.cs file is responsible for configuring a web host and a **middleware pipeline** for the application and launching it so that it is ready to serve requests. It is also the place where you register services with the dependency injection system.
+- The wwwroot folder houses static files - images,Javascript files,CSS files etc.
+- Finally,the Pages folder. This is the default location for Razor Pages. The template site includes three:Error,Index and Privacy.You will add to this shortly.
+
+##### Build And Run The Application
+
+Now you are ready to launch the application.Execute the following command:
+
+`dotnet run`
+
+The site should build and be available to browse at a localhost URL on a specific port number.In the download version that accompanies this tutorial,the port number is 5054.
+
+> **NOTE**
+> The port number varies from project.When referring to URLs in this tutorial series, I will retain the port number for the sample application. If you are following along,you can alter the port number of your application within the launchSettings.json file if you prefer.Look for the profiles section and adjust the applicationUrl values for the http and,optionally,the https profiles accordingly.
+>
+> If you want to run your application against the https profile,and you are a first time user of .NET,youj will need to trust a self-signed certificate that is required for hassle-free browsing of your site over HTTPS on your local system.The certificate itself is installed as part of the SDK. To trust the certificate,execute the following command in the terminal:
+>
+> `dotnet dev-certs https --trust`
+>
+> To run the application using the https profile,use the -launch-profile (or -lp) option and pass in the name of the profile:
+>
+> `dotnet run --launch-profile https`
+
+
+You should get the following confirmation in the terminal from the built-in logging provider:
+
+```
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5045
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+Info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+```
+
+Open a browser and navigate to http://localhost:5045. The site should appear like this:
+
+![index](assets/3.jpg)
+
+##### Summary
+
+At this point,you have used the .NET Core SDK and Visual Studio Code to create a new Razor Pages application.You have reviewed the contents of the project folder,and you have lauched the application in a browser.In the next section,you will add a new page and begin customising the site content.
+
+
+
+
 
 
 #### Razor Pages Files
