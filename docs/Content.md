@@ -221,11 +221,281 @@ So far,you have obtained the .NET SDK and chosen a code editor for building a Ra
 
 Once you have created the page,you will modify the site's layout file which controls the look and feel of all of the site's content.
 
+1. If the application is still running from the previous section,you can either open another terminal `ctrl+shift+\`` or you can press 'Ctrl+C' to shut the web server down. Once you have done that, execute the following command:
+
+`dotnet new page --name About --namespace Bakery.Pages --output Pages`
+
+The Command generates two new files, one with a .cshtml extension and another with a .cshtml.cs extension. The first is a Razor file which will contain Razor syntax - a mixture of HTML markup and C# code representing the content of the page. The second is a C# code file containing a class named AboutModel that derives from PageModel. This file acts as a combined controller and view model and is where you place code for processing HTTP requests.
+
+The name of the page itself is passed to the --name (-n) option. The namespace for the PageModel class is specified via the --namespace (or -p:n) option. If you don't provide one, the default value of MyApp.Namespace is used. Likewise, if you don't specify a location for the generated output (using the --output or -o option), the files will be generated in the folder where the command is executed.Razor pages need to be located in the Pages folder or its sub-folders,otherwise the routing system will not locate them.
+
+2. When you get confirmation that the page was created successfully,open the newly create About.cshtml file (the PageModel file), and amend its content to include a public property - a string named TimeOfDay - together with some code in the OnGet method that sets its value to morning,afternoon or evening depending on the current time of the day:
+
+```csharp
+public class AboutModel : PageModel
+{
+    public string TimeOfDay{get;set;}
+    
+    public void OnGet()
+    {
+        TimeOfDay = "evening";
+        if(DateTime.Now.Hour < 18)
+        {
+            TimeOfDay = "afternoon";
+        }
+        if(DateTime.Now.Hour < 12)
+        {
+            TimeOfDay = "morning";
+        }
+    }
+}
+```
+
+The OnGet method is a handler method that is executed by the framework whenever the page is requested using the HTTP Get method.
+
+3. Once you have made those changes,alter the About.cshtml file so that it's content is as follows:
+
+```csharp
+@page 
+@model Bakery.Pages.AboutModel
+@{
+    ViewData["Title"] = "About us";
+}
+
+<section id="main">
+    <h1>Good @Model.TimeOfDay, and welcome to The Bakery Shop!</h1>
+    <p>The Bakery Shop was established in 2020,offering a wide selection of freshly baked goods and coffee that can be conveniently ordered online and delivered straight to your doorstep. The business was founded by Mike, a former farmer who discovered his talent for baking during his spare time.</p>
+
+    <p>Despite his success in the agriculture industry, Mike had always enjoyed experimenting in the kitchen and had a particular passion for baking. He spent countless hours perfecting his recipes, and soon found that his baked goods were in high demand amongst his friends and family.
+</p>
+<p>Encouraged by their feedback, Mike decided to take a leap of faith and pursue his passion for baking full-time. He started The Bakery Shop, combining his expertise in growing top quality food with his culinary skills to create a business that offers top-quality baked goods, made with all-natural ingredients and sourced locally.
+</p>
+<p>Today, The Bakery Shop is known for its mouth-watering pastries, cookies, cakes, and coffee, as well as its state-of-the-art online ordering system that makes it easy for customers to place their orders and receive them within 24 hours. Despite his success, Mike remains humble and dedicated to producing the best possible products for his customers.
+</p>
+</section>
+```
+
+The @page directive at the top of the file indicates that this is a navigable page. We will explore some aspects of navigation in the next section.
+
+The @model  declaration defines the model for the page and is set to the name of the PageModel class declared in the accompanying code-behind or PageModel file which was generated - About.cshtml.cs. Public properties on the PageModel class are exposed to the content page via its Model property.
+
+Note the ViewData property,which is a dictionary that holds other data for the view or page. At the top of the page, an entry with the key "Title" is set to "About Us".
+
+The h1 content begins with the literal text Good followed by expression @Model.TimeOfDay. The @ symbol is Razor syntax that denotes where we transition from literal HTML markup to C# code. In this case, the C# code is the TimeOfDay property of the AboutModel class, which is exposed to the Razor page via its Model property. The result of the expression will be rendered inline at this point at runtime.
+
+4. Launch the application again,this time using dotnet watch and navigate to /about. You should see the page you just created:
+
+![Aboutus](assets/4.jpg)
+
+> **Hot Reload**
+>
+> The dotnet watch command launches the application in a browser and initialises the Hot Reload feature which is available from .NET 6 onwards. It applies code changes, including changes made to stylesheets and script files to the application without requiring you to continually stop and rebuild your application or refresh your browser.In a Razor Pages app, Hot Reload triggers a browser refresh automatically for supported code changes.
+
+Notice that the navigation menu appears at the top of the page along with footer at the bottom, just like on the home page. Neither form part of the page you just created, so where did they come from?
+
+##### Layout pages
+
+The header, footer and other common site content such as CSS and scripts that applies to all pages is defined in the _Pages/Shared/_Layout.cshtml file. This is known as a Layout page and acts as a wrapper around the content of any page that references it. The layout is assigned to all pages in the Pages folder and its sub-folders via the _ViewStart.cshtml file in the Pages folder.
+
+The content of the About page is rendered at the point in the layout page where you see the call to the RenderBody method:
+
+`@RenderBody()`
+
+This method call is what defines a layout page.
+
+Check the title element at the top of the layout page and you can see where the ViewData["Title"] value is rendered. It is concatenated with the name of the site and is visible in your browser tab (if your browser has one):
+
+![layout](assets/5.jpg)
+
+##### Finishing Off
+
+Finally in this section, you will tweak the layout page to change the branding. You will include a web font which will be used for the brand and you will add some CSS styles. You will also add some Bootstrap CSS classes so that the footer will naturally appear at the bottom of the viewport when there's not enough content, and it will be pushed down to the end of the content if it overflows the viewport. You will do this while the application is running under the `dotnet watch` command so that you can see the Hot Reload feature in action.
+
+Add a Bootstrap CSS class to the <html> element itself to set its height to 100%:
+
+```html
+<html lang="en" class="h-100">
+```
+
+Now alter the <body> element to include the following CSS classes which uses flexbox to stack child elements vertically and to set its height to 100% and its margins to zero:
+
+```html
+<body class="h-100 d-flex flex-column m-0">
+```
+
+The final part of positioning the footer is to tell the main container not to shrink based on its content,using the flex-shrink-0 class.The main element will occupy any available space,pushing the footer to the bottom of the viewport when there isn't enough content in the main element:
+
+```html
+<div class="container flex-shrink-0">
+    <main role="main" class="pb-3">
+        @RenderBody()
+    </main>
+</div>
+```
+
+Then delete the .footer styles from the _Layout.cshtml.css file in the /Pages/Shared folder.
+
+> **Note**
+> The _Layout.cshtml.css file belongs to feature known as CSS isolation.Common in component-based web development frameworks such as React or Blazor,this feature enables you to isolate style declarations to specific page or file. You can read more about CSS Isolation In Razor Pages here.
+
+On to the branding.
+
+Add the following code to the end of the <head> element, which references a Google web font and makes it available to all pages that reference the layout page:
+
+```html
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Limelight&display=swap" rel="stylesheet">
+</head>
+```
+
+Alter the places where the "Bakery" branding currently exists:
+
+- the title element in the head of the layout
+- the anchor tag with the navbar-brand CSS class in the nav
+- the footer, just after the copyright year
+
+so that the text says "The Bakery Shop" instead of "Bakery":
+
+```html
+<body class="h-100 d-flex flex-column m-0">
+    <header>
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+            <div class="container">
+                <a class="navbar-brand" asp-page="/Index">
+                    The Bakery Shop
+                </a>
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target=".navbar-collapse" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+```
+
+Save the changes and keep an eye on the browser. The page should reload and the text changes should be applied.Finally, Add the following style declarations to the site.css file, found in wwwroot/css:
+
+```css
+.navbar-nav {
+    justify-content: flex-end;
+}
+
+.navbar-brand {
+    font-family: limeLight, sans-serif;
+    font-size: 2.5rem;
+}
+```
+The browser should reload again to show the LimeLight font being applied to the branding:
+
+![css](assets/6.jpg)
+
+##### Summary
+
+In this section, you have seen how to use the template instantiation commands to add a new Razor page to a web application.You saw that the Razor page comprises of two files - a content page and a code-behind file containing a class that derives from PageModel.You added some markup to the content page.Then you modified the layout page content that controls the look and feel of the site content and you used `dotnet watch` to see those changes being applied to the running application automatically.
+
+In the next section,you modify the navigation menu to include a link to the new page, and learn a bit about tag helpers and routing in Razor pages.
 
 
+##### Adding Navigation
+
+So far,you have obtained the .NET SDK, a code editor and used them to build a Razor Pages web application from a template. Then you added a new page to the site. You were able to see the new page simply by navigating to it with your browser. You didn't need to perform any additional steps in order to expose the page to the outside world.
+
+In this section, you will modify the navigation menu in the layout page to include a link to your new page and learn a little more about how navigation and URLs work in Razor Pages.
+
+Main site navigation is located in a layout page, which, as you learned in the previous section, acts as a template for all pages that reference it. To change the navigation, open the _Layout.cshtml file located in the Pages/Shared folder.
+
+Locate the lines of code that look like this:
+
+```html
+<li class="nav-item">
+    <a class="nav-link text-dark" asp-area="" asp-page="/Index">Home</a>
+</li>
+<li class="nav-item">
+    <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Privacy</a>
+</li>
+```
+
+Add another `li` element between the existing ones using the following code:
+
+```html
+<li class="nav-item">
+    <a class="nav-link text-dark" asp-page="/About">About</a>
+</li>
+```
+
+If the application is still running from the previous section, you should see the About link appear in the top right corner of the site:
+
+![homepage](assets/7.jpg)
+
+If not, run the application (`dotent watch`) and navigate to http://localhost:5105. Then click on the About link to ensure that navigation works. You should arrive at the page you just created in the previous section.
+
+##### Tag Helpers
+
+The links are generated by tag helpers. These components are designed to target specific tags in the HTML. The anchor tag helper targets the HTML a element. Instead of providing an href attribute to point to an internal page, you provide an asp-page attribute that takes the path of the page, relative to the root Pages folder. The framework constructs the correct URL for the resulting hyperlink based on the routes that the have been built for the specified page.
+
+The original anchor tag helpers include an asp-area attribute which is assigned an empty string and are therefore non-operational. You are not working with areas in this example, so the attribute has not been included in the new anchor to reduce clutter.
+
+##### Routing and URLs
+
+Routing within a Razor Pages application provides a mechanism for matching URLs to a request processing handler - an individual Razor page. Using a very simple convention. routes in Razor Pages are based on the physical location of the Razor page files on disk, rooted in the Pages folder. This makes them extremely easy to reason about. Mentally, you just replace the "Pages" folder with the domain, chop off the file extension and you have a URL for a given page so /Pages/About.cshtml becomes domain.com/about.
+
+The same principle applies if you add sub-folders to the Pages folder. Their names become additional segments in the URL. A page at /Pages/Admin/User/Create.cshtml is reachable at URL domain.com/admin/user/create.
+
+By convention, a single route is created for each page except for pages that are named Index.cshtml. Two routes are constructed for Index pages - one is an empty string, and the other uses the page name: Index. However, when working with tag helpers, you must pass in the name of the file. So the first link in the project template takes "/Index" as the asp-page attribute's value.
+
+At its heart, routing in Razor Pages is deceptively simple, but it is also very powerfull and open to configuration. As you work through this tutorial series, you will see how you can customise routes for pages, and how you can use them to pass data around the application. In the meantime, you can read more about routing here.
+
+In the next section, you will start to work with data within the application. You will begin that journey by generating a representation of the application's domain as C# classes, also known as a Model.
 
 
+##### Working with data in a Razor Pages application
 
+The Bakery Shop will become a data-driven web application, leveraging a relational database for efficient data storage. While alternative methods exist for data management, this pattern is widely adopted by the majority of web applications. With this foundation in place, several crucial decisions need to be made. How will the web application interact with the database, and what approach should be taken for data manipulation within the application?
+
+##### Adopting a Model-based approach
+
+When working with data in a .NET application, you have a choice. You can either shuttle data throughout the application in recordset or dataset structures, or you can represent the things (or entities) that your application is concerned with as classes, and use instances of those as containers for individual rows of data from the database.
+
+The latter approach is recommended, as it facilitates working with data in a strongly-typed manner. This approach offers dual benefits: compile-time checking to minmise runtime errors; and potentially better quality code. It is a lot easier to reason about and maintain code where a piece of data is represented as Person.FirstName instead of ds.Table[0].Rows[0]["FirstName"], which is the way that you would access an item of data in an ADO.NET DataSet object.
+
+Collectively, the code representation of your application's entities is known as the Model. In the case of the Bakery application, the primary focus lies on the Products offered by The Bakery Shop, resulting in a singular class within the model: Product.
+
+
+##### Creating the model
+
+Add a new folder to the root of the application named Models. Then add a C# class file to the Models folder using the following command:
+
+`dotnet new class -n Product -o Models`
+
+The generated file should have the following content:
+
+```csharp
+namespace Bakery;
+
+public class Product
+{
+
+}
+```
+
+Alter the namespace to Bakery.Models and add the following properties to the Product class:
+
+```csharp
+namespace Bakery.Models;
+
+public class Product
+{
+    public int Id {get;set;}
+    public string Name {get;set;}
+    public string Description {get;set;}
+    public decimal Price {get;set;}
+    public string ImageName {get;set;}
+}
+```
+
+Modern web applications commonly utilise Object-Relational Mappers (ORMs), which faciliate the mapping of database tables and columns to model classes and properties. ORMs enable seamless bidirectional data transfer between the application and the database. In addition to mapping, advanced ORMs provide additional functionalities such as automatic generation and execution of SQL commands,transaction management, and migrations.
+
+The recommended ORM to use with ASP.NET Core applications is Entity Framework Core (EF Core). In the next step you will add it to the application.
+
+##### Adding Entity Framework Core
+
+EF Core depends on components called providers to enable it to work with specific databases.
 #### Razor Pages Files
 #### Razor Syntax
 #### Page Models
