@@ -495,7 +495,90 @@ The recommended ORM to use with ASP.NET Core applications is Entity Framework Co
 
 ##### Adding Entity Framework Core
 
-EF Core depends on components called providers to enable it to work with specific databases.
+EF Core depends on components called providers to enable it to work with specific databases. The EF Core team maintains official providers for SQL Server and SQLite as well as other database systems. In this exercise, you will use SQLite, which is a cross-platform file-based database.
+
+When starting a new project, EF Core is not included in the project template by default. However, you can easily add it to your project by installing the corresponding NuGet package. To install EF Core with the SQLite provider into your application, execute the following command in the terminal to install the latest release version of the package:
+
+`dotnet add package Microsoft.EntityFrameworkCore.Sqlite`
+
+##### Adding and registering a Context
+
+The core component of EF Core that you will utilise to interact with the database is a class derived from DbContext, commonly referred to as the "context". The context represents a session with the database and offers a comprehensive API that enables the following capabilities:
+
+1. Database Connections: The context facilitates establishing and managing connections to the database.
+
+2. Data operations: You can perform various data operations, including querying and persisting data, using the context.
+
+3. Change Tracking: The context tracks changes made to the entities within its scope, allowing you to efficiently handle updates.
+
+4. Model Building: With the context, you can define and configure the model, specifying the structure and relationships of the entities.
+
+5. Data Mapping: The context handles the mapping between the model classes and the corresponding database tables and columns.
+
+6. Object Caching: To enhance performance, the context incorporates and object cache that stores frequently accessed entities.
+
+7. Transaction Management: The context supports managing transactions, ensuring data consistency and atomicity.
+
+To add a context, create a folder named Data in the root of the project. Then add a C# class file to it named BakeryContext.cs. Amend the content as follows:
+
+
+```csharp 
+using Bakery.Models;
+using Microsoft.EntityFrameworkCore;
+namespace Bakery.Data;
+
+public class BakeryContext : DbContext
+{
+    public DbSet<Product> Products {get;set;}
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.UseSqlite(@"Data source=Bakery.db");   
+    }
+}
+```
+
+The context has one property - a DbSet named Products. The DbSet class maps to a table in the database. By default, mapping is controlled through name-based conventions. The name of the DbSet is expected to match the name of the corresponding table, and its column names will match property names on the Product class. EF Core also provides a powerful API for configuring the mapping where conventions need to be overriden, or configuration needs to be specified explicitly.
+
+The OnConfiguring method provides a place for you to configure your context. In this case, you have configured the context to use the SQLite provider, and you have specified the connection string to be used.
+
+When working with a context, you can just instantiate an instance wherever you need it, e.g.
+
+```csharp
+using var context = new BakeryContext();
+// do something with data
+
+```
+
+The DbContext implements IDisposable, so you are responsible for ensuring disposal of the context when you have finished with it. The usual pattern for managing this is to instantiate the context with a using statement as shown here (although technically this example shows a using declaration).
+
+However, the recommended approach to working with a context in an ASP.NET Core application is to register it with the dependency injection (DI) system and make it available as a "service". The DI system takes responsibility for managing the lifetime of the context. Recall from the New Application section that service registration takes place in the Program.cs file.
+
+> **The Dependency Inversion Principal**
+>
+> Dependency injection is the most common way to achieve the Dependency Inversion Principal (the "D" in SOLID), which states that high level modules (e.g. a consuming class) should not depend on low level modules (e.g. a DataContext). Both should depend on abstractions.
+>
+> What this means in practice is that you can swap the implementation of the dependency without touching code in the consuming class. You control the actual implementation at the point of service registration. This is most useful when testing when you can swap the implementation of the service for a mock or test double so that your tests are not couducted against a live database, potentially slowing them down.
+
+To register the context, add a using directive at the top of Program.cs to bring the Bakery.Data namespace into scope. Then call the AddDbContext extension method to register the BakeryContext with the service container:
+
+```csharp
+using Bakery.Data;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddRazorPages();
+builder.Services.AddDbContext<BakeryContext>();
+```
+
+Now the context can be made available anywhere within the application by injecting it via the class constructor. The AddDbContext method registers the context with a Scope lifetime, meaning that a new one will be made available for each request. The services container will take care of ensuring that it is disposed of correctly.
+
+##### Summary
+
+You now have a model (small,but still a model), and an EF Core context. All you need now is a database. In the next section, you will see how EF Core migrations can be used to create one.
+
+
+
 #### Razor Pages Files
 #### Razor Syntax
 #### Page Models
