@@ -577,6 +577,18 @@ Now the context can be made available anywhere within the application by injecti
 
 You now have a model (small,but still a model), and an EF Core context. All you need now is a database. In the next section, you will see how EF Core migrations can be used to create one.
 
+##### Creating a Migration
+
+In the previous section, you created a model - a representation of the entities that your application is concerned with. Then you installed and configured EF Core to manage communication between the model and a database which doesn't actually exist yet.
+
+When developing applications, the model is likely to change often as new requirements come to light. Once created, the database needs to be kept in sync with the model. The Entity Framework Core migrations feature enables you to make changes to your model and then propagate those changes to your database schema. The migrations feature can also be used to create the database if it doesn't exist.
+
+##### Configure the model
+
+EF Core migrations are based on a set of conventions. The conventions govern how DbSet objects are mapped to tables in the database, how properties are mapped to columns, how .NET data types are mapped to suitable types exposed by the database provider and how keys and indexes are created and managed.
+
+In this tutorial series, you will rely largely on conventions to manage mapping. Entities will map to database tables and properties will map to columns based in their names. Sometimes the conventions don't satisfy your needs, or EF Core is unable to determine your intentions. In these cases, you can use configuration to tell EF Core what you want.
+
 
 
 #### Razor Pages Files
