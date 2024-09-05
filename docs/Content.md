@@ -593,7 +593,416 @@ Configuration can be applied in two ways; through decorating classes and propert
 
 so where should you put your fluent API configuration code?
 
-You 
+You have two options: you can place it directly in the OnModelCreating method of your DbContext class; or you can place configuration code on separate classes per entity. You will adopt the latter approach because it is the recommended way to manage configurations.
+
+Add a new folder to the Data folder and name it Configurations. Then add a new C# class file named ProductConfiguration.cs to the Configurations folder. Replace the content with the following:
+
+```csharp
+using Bakery.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Bakery.Data;
+
+public class ProductConfiguration : IEntityTypeConfiguration<Product>
+{
+    public void Configure(EntityTypeBuilder<Product> builder)
+    {
+        builder.Property( p => p.ImageName ).HasColumnName("ImageFileName");
+    }
+}
+```
+
+The class implements the IEntityTypeConfiguration<TEntity> interface which has one method: Configure. Configurations are defined in this method. The default mapping convention is to map to columns that have the same as the property. In this example, you use the HasColumnName method to instruct the context to map the ImageName property to a column named "ImageFileName".
+
+The configuration class is registered in the OnModelCreating method of BakeryContext as shown in the highlighted section:
+
+```csharp
+public class BakeryContext : DbContext
+{
+    public DbSet<Product> Products {get;set;}
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.UseSqlite(@"Data source=Bakery.db");
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfiguration(new ProductConfiguration());
+    }
+}
+```
+
+##### Create Seed Data
+
+When you use a migration to create a database, it will start off empty empty - unless you "seed" it with data at the time that the migration is executed. In this section, you will use the HasData configuration method to achieve this.
+
+Create a new C# class file in the Data folder and name it ModelBuilderExtension.cs. Replace the content with the following code:
+
+```csharp
+using Bakery.Models;
+using Microsoft.EntityFrameworkCore;
+namespace Bakery.Data;
+public static class ModelBuilderExtensions
+{
+    public static ModelBuilder Seed(this ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Product>().HasData(
+        new Product
+        {
+            Id = 1,
+            Name = "Carrot Cake",
+            Description = "A scrumptious carrot cake encrusted with sliced almonds",
+            Price = 8.99m,
+            ImageName = "carrot-cake.jpg"
+        },
+        new Product
+        {
+            Id = 2,
+            Name = "Lemon Tart",
+            Description = "A delicious lemon tart smothered with juicy fresh fruit",
+            Price = 9.99m,
+            ImageName = "lemon-tart.jpg"
+        },
+        new Product
+        {
+            Id = 3,
+            Name = "Cupcakes",
+            Description = "Delectable vanilla and chocolate cupcakes",
+            Price = 5.99m,
+            ImageName = "cup-cakes.jpg"
+        },
+        new Product
+        {
+            Id = 4,
+            Name = "Bread",
+            Description = "Fresh baked French-style bread, bagettes and cobs",
+            Price = 2.49m,
+            ImageName = "bread.jpg"
+        },
+        new Product
+        {
+            Id = 5,
+            Name = "Bagels",
+            Description = "Deliciously chewy freshly made New York-style bagels.",
+            Price = 5.99m,
+            ImageName = "bagels.jpg"
+        },
+        new Product
+        {
+            Id = 6,
+            Name = "Chocolate Cake",
+            Description = "Rich chocolate frosting cover this chocolate lover's dream",
+            Price = 8.99m,
+            ImageName = "chocolate-cake.jpg"
+        },
+        new Product
+        {
+            Id = 7,
+            Name = "Brownies",
+            Description = "Fudgy, gooey and super chocolaty with a crispy top",
+            Price = 5.99m,
+            ImageName = "brownie.jpg"
+        },
+        new Product
+        {
+            Id = 8,
+            Name = "Sweet Buns",
+            Description = "Sweet, light, airy and perfect with your afternoon tea",
+            Price = 3.49m,
+            ImageName = "buns.jpg"
+        }, 
+        new Product
+        {
+            Id = 9,
+            Name = "Cheesecake",
+            Description = "Creamy and vibrant lemon cheesecake made with organic lemons",
+            Price = 2.49m,
+            ImageName = "cheesecake.jpg"
+        },
+        new Product
+        {
+            Id = 10,
+            Name = "Chocolate Cookies",
+            Description = "Crisp on the outside, soft on the inside and full of chocolate chips",
+            Price = 3.49m,
+            ImageName = "chocolate-chip.jpg"
+        },
+        new Product
+        {
+            Id = 11,
+            Name = "Cinnamon Rolls",
+            Description = "Big, fluffy, soft and delicious with warming cinnamon",
+            Price = 3.99m,
+            ImageName = "cinnamon-roll.jpg"
+        },
+        new Product
+        {
+            Id = 12,
+            Name = "Croissants",
+            Description = "Flaky and buttery, perfect for savoury or sweet",
+            Price = 3.49m,
+            ImageName = "croissant.jpg"
+        },
+        new Product
+        {
+            Id = 13,
+            Name = "Doughnuts",
+            Description = "Traditional ring doughnuts with a variety of toppings",
+            Price = 5.49m,
+            ImageName = "doughnuts.jpg"
+        },
+        new Product
+        {
+            Id = 14,
+            Name = "Fruit Loaf",
+            Description = "Packed full with ony the juiciest, plumpest fruit",
+            Price = 8.49m,
+            ImageName = "fruit-loaf.jpg"
+        },
+        new Product
+        {
+            Id = 15,
+            Name = "Fruit Tart",
+            Description = "Light pastry with a selection of the freshest fruit",
+            Price = 6.49m,
+            ImageName = "fruit-tart.jpg"
+        },
+        new Product
+        {
+            Id = 16,
+            Name = "Lemon Meringue",
+            Description = "Zingy lemon on a light pastry covered with light clouds of meringue",
+            Price = 10.99m,
+            ImageName = "lemon-meringue.jpg"
+        },
+        new Product
+        {
+            Id = 17,
+            Name = "Macaron",
+            Description = "Tiny, delicate meringue pillows with a variety of fillings",
+            Price = 9.99m,
+            ImageName = "macaron.jpg"
+        },
+        new Product
+        {
+            Id = 18,
+            Name = "Pain Au Chocolate",
+            Description = "The lighest pastry shot through with top quality chocolate",
+            Price = 4.49m,
+            ImageName = "pain-au-chocolate.jpg"
+        },
+        new Product
+        {
+            Id = 19,
+            Name = "Cornish Pasty",
+            Description = "A meaty treat based on traditional Cornish recipes",
+            Price = 5.99m,
+            ImageName = "pasty.jpg"
+        },
+        new Product
+        {
+            Id = 20,
+            Name = "Sliced Bread",
+            Description = "Our top quality loaves sliced for your convenience",
+            Price = 2.49m,
+            ImageName = "sliced-bread.jpg"
+        });
+        return modelBuilder;
+    }
+}
+```
+
+The Seed method is an extension method on the ModelBuilder type, which is passed in to the OnModelCreating method that you worked with  earlier. The body of the method uses the HasData method to configure the specified entity with seed data. The values provided for each entity include the key values. SQLite happily accepts values in an autoincrement column if they are provided as part of an INSERT statement. SQL Server, on the other hand, will enable IDENTITY_INSERT on the target table, and then turn it off again once the seed data has been added. Whenever future migrations are applied, EF Core checks seed data against values that already exist in the database, preventing the seed data being applied again. Any new seed data is inserted. If any of the existing  seed data values are altered, EF Core executes an UPDATE statement accordingly.
+
+> **Note**
+>
+> The image files are available in the download that accompanies this tutorial series. Create a folder named images is wwwroot, and within that folder, create another folder called products. Place the product images there. They should then be available at the following relative URL : /images/products/...
+
+The seed method itself is called in the OnModelCreating method. It returns an instance of the ModelBuilder type, enabling it to be chained to other calls that also return the ModelBuilder type. The ApplyConfiguration method that you used to add the product configuration meets this criteria, so you can chain the Seed method to that:
+
+```csharp
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    modelBuilder.ApplyConfiguration(new ProductConfiguration()).Seed();
+}
+```
+
+##### Create the migration
+
+Now that  the model configuration is complete and provision for seed data has been made, you can create the actual migration.But before you do, you need to install the tools that scaffold the migration code. Use the terminal to execute the following command from within the BakeryShop directory (the one containing the project file):
+
+`dotnet add package Microsoft.EntityFrameworkCore.Design`
+
+Followed by this one to create the migration:
+
+`dotnet ef migrations add CreateDatabase --output-dir Data/Migrations`
+
+This creates a migration called CreateDatabase. The files for the migration are generated in a newly created folder named Migrations in the Data folder (as specified by the value passed to the output-dir switch):
+
+![datafolder](assets/74.png)
+
+The first file contains C# code that gets translated into SQL statements to be executed, while the snapshot file contains a C# representation of the current model. This is used by subsequent migrations to calculate the changes required to update the schema of the database.
+
+##### Execute the migration
+
+Having configured and created the migration, it is time to execute it. At the terminal, type the following and press Enter to execute the command:
+
+`dotnet ef database update`
+
+Once you get confirmation that the migration has been applied, you should see a Bakery.db file that has been created in the root of the site:
+
+![bakery.db](assets/75.png)
+
+You can open this uing a suitable utility. My preferred tool for managing SQLite databases is DB Browser For SQLite. You can explore the generated tables. The __EFMigrationsHistory table contains details of each migration. The products table contains the data that you seeded it with:
+
+![Sqlitebrowser](assets/76.png)
+
+##### Summary
+
+You have learned how to configure a model prior to a migration, generate seed data and then create a migration and execute it. Now that you have a database with data, you can start working with it, and that is what you will do in the next section.
+
+
+##### Working With Data
+
+In this first look at working with data in a Razor Pages application, you will focus on using the BakeryContext to retrieve data for display on the home page and the ordering page, which has yet to be added to the application. You are working towards producting a home page that looks like this, where all of the products are displayed together with their description, image and price:
+
+![shoppage](assets/8.jpg)
+
+##### The PageModel
+
+First, you will inject the BakeryContext into the IndexModel class and use it to populate a collection of Product entities. Open the Pages/Index.cshtml.cs file and replace the existing contents with the following:
+
+```csharp
+using Bakery.Data;
+using Bakery.Models;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+
+namespace Bakery.Pages;
+
+public class IndexModel : PageModel
+{
+    private readonly BakeryContext context;
+    
+    public IndexModel(BakeryContext context)=>this.context = context;
+    public List<Product> Products {get;set;}
+    public async Task OnGetAsync() => Products = await context.Products.ToListAsync();
+}
+```
+
+This is the PageModel file, Recall that the PageModel acts as a combined page controller and view model, the latter representing the data required for a view. Most often, the view is a page, but it could be a partial or a view component, which you will meet in a later sections of this tutorial series.
+
+As a controller, the role of the PageModel is to process information from a request, and then prepare the model for the view (the view model). There is a one-to-one mapping between PageModels and Content Pages (the view) so the PageModel itself is the view model.
+
+Information from the request is processed within handler methods. This PageModel has one handler method - OnGetAsync, which is executed by convention whenever an HTTP GET request is made to the page. The PageModel has a private field named context  which is a BakeryContext type. It also has a constructor method that takes a BakeryContext object as a parameter. The parameter's value is provided by the dependency injection system. This pattern is known as construction injection.
+
+The PageModel class has a public property Products - a list of products which is populated in the OnGetAsync method.
+
+##### The Content Page
+
+Now it's time to produce the UI. Replace the code in the Index content page (Pages/Index.cshtml) with the following:
+
+```html
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Home page";
+}
+
+<h1 class="fw-light">Welcome to the Bakery Shop</h1>
+<div class="row">
+    @foreach (var product in Model.Products)
+    {
+        <div class="col-3 p-1">
+            <div class="card h-100">
+                <img src="/images/products/@product.ImageName" class="img-fluid card-img-top" alt="@product.Name" />
+                <div class="card-body">
+                    <h5 class="card-title">@product.Name</h5>
+                    <p class="card-text">@product.Description</p>
+                    <div class="d-flex justify-content-between">
+                    <span class="card-text">@(product.Price.ToString("c"))</span>
+                    <a class="btn btn-danger btn-sm" asp-page="/Order" asp-route-id="@product.Id">Order Now</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+```
+
+The @model directive at the top of the page specifies the type for the page's model (IndexModel). You work with the PageModel through the content page's Model property.
+
+The code loops through all of the products and displays their details including their image. Each product includes a hyperlink, styled like a button (using Bootstrap styling). Although it doesn't go anywhere yet, the hyperlink is generated by an anchor tag helper, which includes an asp-route attribute. This attribute is used passing data as route values to the target page. The route parameter is named id, and the product's key value is passed to the attribute. You will see how this works in more detail when you add the Order page, which is the next step.
+
+In the meantime, test the application by executing dotnet watch at the terminal which should result in the application launching in a browser. The home page should look like the image at the beginning of this section.
+
+##### Adding The Order Page
+
+If you inspect the href values of the Order Now buttons, you will see that they are presently empty. This is what happens if the anchor tag helper is unable to find a route for the path passed in to  the asp-for attribute. You will resolve this by adding a new page which will initially attemtpt to fetch and display details of the product associated with the id value passed in the URL when the button is clicked.
+
+Execute the following command in the terminal to add a new page called Order:
+
+`dotnet new page --name Order --namespace Bakery.Pages --output Pages`
+
+Open the newly created Order.cshtml.cs file and replace the content with the following:
+
+```csharp
+using Bakery.Data;
+using Bakery.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+namespace Bakery.Pages;
+public class OrderModel : PageModel
+{
+    private BakeryContext context;
+    public OrderModel(BakeryContext context) => 
+        this.context = context;
+    [BindProperty(SupportsGet = true)]
+    public int Id { get; set; }
+    public Product Product { get; set;}
+    public async Task OnGetAsync() =>  
+        Product = await context.Products.FindAsync(Id);
+}
+```
+
+Again, the BakeryContext is injected into the PageModel constructor. A public property, Product, is instantiated in the OnGetAsync method. The FindAsync method takes a value representing the primary key of the entity to be returned. In this case, the parameter passed to the FindAsync method is another public property - Id. But where does it get its value from?
+
+The Id property is decorated with the BindProperty attribute.This attribute ensures that the property is included in the model binding process, which results in values passed as part of an HTTP request being mapped to PageModel properties and handler method parameters. By default, model binding only works for values passed in a POST request. The Order page is reached by clicking a link on the home page, which results in a GET request. You must add SupportsGet = true to opt in to model binding on GET request.
+
+If you recall, the anchor tag helpers on the home page that link to the Order page include an asp-route-id attribute, representing a route value named id. By default, route values are passed as name/value pairs in the query string of the URL: /order&id=1. Razor Pages also supports passing route values as segments of the URL: /order/1. This is accomplished by defining a route parameter as part of a route template within the content page. That is what you will do as part of the next step. Amend the content of Order.cshtml as follows:
+
+```html
+@page "{id:int}"
+@model Bakery.Pages.OrderModel
+@{
+  ViewData["Title"] = "Place your order";
+}
+<div class="progress mb-3" style="height:2.5rem;">
+  <div class="progress-bar w-50" style="font-size:1.5rem;" role="progressbar">Select Item</div>
+</div>
+<div class="row">
+  <div class=" col-3">
+    <h3>@Model.Product.Name</h3>
+    <img class="img-fluid" src="/images/products/@Model.Product.ImageName" title="@Model.Product.Name" />
+    <p>@Model.Product.Description</p>
+  </div>
+</div>
+```
+
+The first line of code contains the @page directive, which is what makes this a Razor Page, and it also includes the following: "". This is a route template. This is where you define route parameters for the page. This template defines a parameter named id which will result in the anchor tag helpers on the home page generating URLs with the id value as a segment rather than as a query string value. You have also added a constraint. In this case, you have specified that the value of id must be an integer (:int). The order page cannot be reached unless a integral value for the id route value is provided. If the vaue is missing, or is not an integer, Razor Pages will return a 404 Not Found response.
+
+Now if you run the application and click on one of the buttons on the home page, the order page is displayed with the name of the selected product:
+
+![image](assets/9.jpg)
+
+##### Summary
+
+You have successfully used the BakeryContext to connect to the database and retrieve data which has been assigned to properties of the PageModel. They are exposed via the Model property in the content page. You used Razor syntax to loop through a collection of products to display them. You have also seen in this section how to pass data in URLs and leverage the BindProperty attribute to map route values to public properties in the PageModel. Finally, you have seen how to use that value to query for a specific item so that you can display details of it.
+
+Soon you will start working with forms to collect user details for an order. The form will rely on some CSS and JavaScript. Before you build the form, you will add support for Sass - a technology that makes working with CSS easier.
 
 #### Razor Pages Files
 #### Razor Syntax
