@@ -589,7 +589,11 @@ EF Core migrations are based on a set of conventions. The conventions govern how
 
 In this tutorial series, you will rely largely on conventions to manage mapping. Entities will map to database tables and properties will map to columns based in their names. Sometimes the conventions don't satisfy your needs, or EF Core is unable to determine your intentions. In these cases, you can use configuration to tell EF Core what you want.
 
+Configuration can be applied in two ways; through decorating classes and properties with attributes, or by using the Fluent API. Attributes only provide a subset of configuration options. Therefore for any reasonably complex model, you are likely to rely on the fluent API for at least part of your configuration. Consequently it makes sense to use fluent API for all configuration, thereby keeping your configuration code consistent, in one place and therefore easier to maintain.
 
+so where should you put your fluent API configuration code?
+
+You 
 
 #### Razor Pages Files
 #### Razor Syntax
