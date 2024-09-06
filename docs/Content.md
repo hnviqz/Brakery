@@ -1004,6 +1004,285 @@ You have successfully used the BakeryContext to connect to the database and retr
 
 Soon you will start working with forms to collect user details for an order. The form will rely on some CSS and JavaScript. Before you build the form, you will add support for Sass - a technology that makes working with CSS easier.
 
+
+##### Adding Support For Sass
+
+In this section, you will add support for Sass. This in not essential for applications built with Razor Pages. However, Sass is a design-time tool that helps you to organse and maintain your css files. During this section, you will add some styles which are designed to work with from validation that you will put to use in the next section when you build a form. If you prefer not to use Sass, skip to the end of this section for the plain CSS version of the validation styles.
+
+Sass (Syntactically Awesome Style Sheets) is a is a scripting language that is used to generate cascading style sheets (CSS files). Its syntax is very similar to CSS itself (valid CSS is actually valid Sass), but it supports the use of variables, nesting, mixins and selector inheritance, none of which are available in CSS itself. However, these features help you to organise and maintain your web application's styles and improve your productivity.
+
+If you are new to Sass, I advise you to check the official guide for a great introduction to using Sass in your application. You will be working with Bootstrap Sass variables in this exercise.
+
+In order to get the benefits of Sass, you need a Sass compiler - a tool that processes your Sass files and produces the CSS files that the browser understands and can use. You can compile Sass from the command line once you have installed, or you can use an extension to manage this process when working in VS Code. Live Sass Compiler is one of most popular Sass compilers for Visual Studio Code. Search for "live sass compiler" in the Extension marketplace and then install the extension:
+
+![Sass](assets/77.png)
+
+Once installed and enabled, go to File > Preferences > Settings and then search for "live sass compiler" again, or locate Live Sass Compiler under the extensions node in the Commonly Used pane. You should be presented with the settings editor for the extension.
+
+Some settings can be set directly from the screen that appears, but most of them require editing in the settings.json file. Click on Edit in settings.json and add the following:
+
+```json
+"LiveSassCompile.settings.formats":[
+    {
+        "format" : "expanded",
+        "extensionName" : ".css",
+        "savePath" : "~/"
+    },
+    {
+        "format" : "compressed",
+        "extensionName" : ".min.css",
+        "savePath" : "~/"
+    }
+],
+"liveSassCompile.settings.excludeList" : [
+    "/**/lib/bootstrap/dist/scss/**"
+]
+```
+
+This configures two output formats: the first produces standard css files with white space and indentation. The second produces the minified version for use in production. Both have a savePath setting of ~/, which represents the location of the .scss file being compiled. Guidance on further settings and commands is available at the Github site for the extension project. The settings above also configure an exclusion for the compiler. Files in the wwwroot/lib/bootstrap/dist/scss folder will not be includes as part of processing. There are no files there at the moment. You will add some next.
+
+##### Using Bootstrap Sass
+
+Download the Bootstrap source files (https://github.com/twbs/bootstrap/archive/v5.2.3.zip) and then unzip the scss folder and its content to wwwroot/lib/bootstrap/dist/ so that the resulting folder structure looks like this:
+
+![bootstrap](assets/78.png)
+
+Next, rename the site.css file to site.scss. Then add the following two lines to the top of the file to import the Bootstrap Sass functions and variables:
+
+```bootstrap
+@import "../lib/bootstrap/dist/scss/functions";
+@import "../lib/bootstrap/dist/scss/variables";
+```
+
+Add the following style declarations to the file.They use Bootstrap colour variables ($red-200 and $red-500):
+
+```css
+.input-validation-error,
+.input-validation-error:focus{
+    backgroud: $red-200;
+    color:$red-500;
+}
+.input-validation-error:focus{
+    border-color: $red-500;
+    box-shadow: 0 0 0 0.2rem $red-200;
+}
+.field-validation-error,
+.validation-summary-errors{
+    color:$red-500;
+}
+```
+
+To activate the compiler, click on Watch Sass in the status bar at the bottom of the code editor:
+
+![watchsass](assets/79.png)
+
+The status should change to "Watching", and you should see a number of new files created in the css folder:
+
+![watching](assets/80.png)
+
+The generated css file contains hex colours in place of the variables in the scss file:
+
+```css
+.input-validation-error,
+.input-validation-error:focus{
+    background:#f1aeb5;
+    color:#dc3545;
+}
+
+.input-validation-error:focus{
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem #f1aeb5;
+}
+
+.field-validation-error,
+.validation-summary-errors{
+    color: #dc3545;
+}
+
+```
+
+Now that you have some validation styles, you can put them to use when you build an order form in the next section.
+
+
+##### Working With Forms
+
+Any successful e-commerce site needs to be able to fulfil orders. It's difficult to do this if you don't have the contact details and shipping address of the customer. Websites collect this type of information from users by asking them to submit it in a form.
+
+In this section, you will add a form to the Order page. You will also add validation to the form to ensure that the information you collect meets your business rules regarding presence, data type and range of the data submitted. Validation is an important part of form development. It occurs in two locations: in the browser before the form is submitted (client-side validation) and on the server after submission of the form (server-side validation). You should not rely on client-side validation because it is easy to circumvent. Consequently, you should consider client-side validation only as a courtesy to the user. You should consider server-side validation as essential. Therefore you will begin by adding server-side validation in this section. Then you will add client-side validation, not least because the validation framework in Razor Pages makes it trivial to do so.
+
+##### Model Binding
+
+You will leverage the ASP.NET Core framework's model binding capability as part of robust form development. Model binding is the process that takes values from HTTP requests and maps them to handler method parameters or PageModel properties. Model binding reduces the need for the developer to manually extract values from the request - from the URL or the request body for example - and then assign them, one by one, to variables or properties for later processing. This work can be repetitive, tedious and error prone.
+
+To begin, you will add some public properties to the OrderModel class marked with the BindProperty attribute, which denotes the property as a binding target for values that the user will submit via the order form. The properties map to values that you want to capture in the form.
+
+Add the highlighted lines below to Order.cshtml.cs:
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+using Bakery.Data;
+using Bakery.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+namespace Bakery.Pages;
+public class OrderModel : PageModel
+{
+    private BakeryContext context;
+    public OrderModel(BakeryContext context) => this.context = context;
+    [BindProperty(SupportsGet =true)]
+    public int Id { get; set; }
+    public Product Product { get; set;}
+    [BindProperty, Range(1, int.MaxValue, ErrorMessage = "You must order at least one item")]
+    public int Quantity { get; set; } = 1;
+    [BindProperty, Required, EmailAddress, Display(Name ="Your Email Address")]
+    public string OrderEmail {get;set;}
+    [BindProperty, Required, Display(Name ="Shipping Address")]
+    public string ShippingAddress { get; set; }
+    [BindProperty]
+    public decimal UnitPrice { get; set; }
+    [TempData]
+    public string Confirmation { get; set; }
+    public async Task OnGetAsync() =>  Product = await context.Products.FindAsync(Id);
+}
+```
+
+The additional using directive brings the DataAnnotations namespace into play. This namespace includes a number of attributes, many of which implement ValidationAttribute. You can apply any combination of these attributes to model binding targets (public PageModel properties) to ensure that user input meets your business rules. In this example, you are using the following validation attributes:
+
+- EmailAddress - validates  whether a string matches the pattern of a "well formed" email address
+- Required - specifies that a value is required
+- Range - ensures that the value is within the specified range
+
+> ;;;
+
+
+##### Warning 
+
+The definition of "well formed" as applied to the EamilAddress attribute leaves something to be desired. It only validates that the submitted string includes just one "@" character within it, and it is neither the first nor the last character. It does not validate for something that meets RFC 6854 for example, or something that can actually receive mail. You should check the source code of any validation attribute to ensure that its logic does indeed meet your business rule requirements.
+
+You have also applied the Display attribute which enables you to customise the value displayed in the UI whenever the property is rendered (such as in a form label). By default, the literal property name is used.
+
+The final attribute of interest - TempData - is not a data annotation attribute. Properties marked with this attribute have their values stored in the TempDataDictionary, which is a simple data structure that enables state to be retained for a short period (usually until the value is accessed). You will use it to store a confirmation message that will be accessed after the form has been submitted.
+
+##### Adding The Form
+
+Now you can add the form. You will use label tag helpers to generate form labels from the fproperty names ( or their Display attribute's Name property), and you will use input tag helpers to generate the form inputs. These enable you to bind the PageModel properties to individual controls. When you do so, the id and name attributes are automatically generated for the rendered HTML element and any value assigned to the property is applied to the form control.
+
+> **Note**
+>
+> The name attribute is the most important attribute in a form control. Its value is used as the key for name/value pairs passed  to the server when the form is submitted, and is matched to public property names or handler method parameter names by the model binder
+
+Add the following lines to Order.cshtml, just before the closing div element:
+
+```html
+<form class="col-9" method="post">
+  <div class="form-group mb-3">
+    <label asp-for="Quantity" class="form-label"></label>
+    <input asp-for="Quantity" class="form-control" /> 
+    <span asp-validation-for="Quantity"></span>
+  </div>
+  <div class="form-group mb-3">
+    <label asp-for="OrderEmail" class="form-label"></label>
+    <input asp-for="OrderEmail" class="form-control " />
+    <span asp-validation-for="OrderEmail"></span>
+  </div>
+  <div class="form-group mb-3">
+    <label asp-for="ShippingAddress" class="form-label"></label>
+    <textarea asp-for="ShippingAddress" class="form-control"></textarea>
+    <span asp-validation-for="ShippingAddress"></span>
+  </div>
+  <button type="submit" class="btn bn-sm btn-primary">Place order</button>
+</form>
+```
+
+The form makes use of tag helpers to render the labels, inputs and the validation messages. The tag helpers that target input elements are particularly powerful. PageModel properties are assigned to the asp-for attributes on the input tag helpers. The input tag helpers then render the correct name attribute based on the property, so that model binding works seamlessly. Any values assigned to the properties are automatically rendered to the value attribute of the input. The input's type attribute is generated according to the data type of the property.
+
+The form element itself is targeted by a form tag helper, which ensures that a request verification token is rendered as a hidden field within the form.
+
+Next, you need a handler method for processing the form. Add the following to the Order.cshtml.cs file:
+
+```csharp
+public async Task<IActionResult> OnPostAsync()
+{
+    Product = await db.Products.FindAsync(Id);
+    if(ModelState.IsValid)
+    {
+        Confirmation = @$"You have ordered {Quantity} x {Product.Name} at a total cost  of {Quantity*UnitPrice:c}";
+        return RedirectToPage("/OrderSuccess"); 
+    }
+
+    return Page();
+}
+```
+
+You begin by fetching details of the product from the database again because HTTP is stateless and data is not persisted across requests. Then this handler method verfifies that ModelState.IsValid, Which ensures that the model binding feature is satisfied that all submitted values pass validation checks, and that all required values are present.If there are no validation errors, the user is redirected to a page called OrderSuccess (which you will add shortly). You have assigned a value to the Confirmation property, which is marked with a TempData attribute.
+
+If there are validation errors, entries are added to the ModelState object and IsValid returns false. The current page is redisplayed (return Page()) and the validation tag helpers display the error messages.
+
+> This pattern is known as Post-Redirect-Get(PRG) and is designed to minimise the chance of duplicate submissions resulting from double posting.
+
+Now add the OrderSuccess page to the application using the following command:
+
+`dotnet new page --name OrderSuccess --output Pages --namespace Bakery.Pages`
+
+Replace the content of the OrderSuccess.cshtml file with the following which renders the confirmation from the TempData dictionary:
+
+```html
+@page
+@model Bakery.Pages.OrderSuccessModel
+@{
+
+}
+
+<div class="progress mb-3" style="height:2.5rem;">
+    <div class="progress-bar w-100" style="font-size:1.5rem;" role="progressbar">Confirmation
+    </div>
+</div>
+<h1>Order Confirmation</h1>
+<p>@TempData[nameof(OrderModel.Confirmation)]</p>
+```
+
+Now it's time to test that the form works and is processed correctly. Launch the application by typing dotnet watch, and then navigate to the home page. Click the Order Now button  on any product and ensure that the form has displayed correctly:
+
+![order](assets/10.jpg)
+
+Now press the Place Order button without entering an email or shipping address, so that you can test the validation.Both fields should turn pink and error messages should appear below them:
+
+![validationorder](assets/11.jpg)
+
+You can perform further tests such as removing the value in the Quantity box, or entering a random string into the email input. Each time, the error messages should appear once you have submitted the form.
+
+##### Adding Client Side Validation
+
+At the moment, all the validation is performed on the server. When you click the Order Now button, the form is submitted to the server using a POST request, and the entire page is re-rendered to provide feedback to the user.
+
+![clientvalidation](assets/81.png)
+
+The round trip is not really noticeable to you while developing the site, because the client and the server are on the same machine. However, in a real world application, there could be some delay before the user receives any feedback. Validating on the client will provide the user with instant feedback.
+
+> Warning 
+>
+> Validatinig on the client should be seen as a courtesy to the user only. It should never replace server-side validation. It is very easy for anyone with a small amount of HTML/JavaScript knownledge to circumvent client-side validation.
+
+Client side validation is included by default in Razor Pages, but it needs to be enabled.You do that by including the jQuery Validation and jQuery Unobtrusive Validation libraries in your page. The code for including these scripts is already available in a partial file named _ValidationScriptsPartial.cshtml which is located in the Pages/Shared folder. To include it, add a partial tag helper to a scripts section in Order.cshtml as illustrated in the highlighted line of code below:
+
+```javacript
+@section scripts{
+    <partial name="_ValidationScriptsPartial" />
+}
+```
+
+> **Note**
+> A Section represents a placeholder for a content page to provide additional content to a pre-defined location in a layout page. 
+
+Now if you try submitting the form with missing values, the errors appear without the form actually being posted to the server. And if you provide values that satisfy the validation, you should get taken to the OrderSuccess page:
+
+![formvalidation](assets/82.png)
+
+##### Summary
+
+In this section, you  have created a form using tag helpers and added both server-side and client-side validation and tested that both work. In the next section, you will continue with client-side development then you learn how to configure TypeScript in the application to manage your JavaScript files, when you add some logic to calcuate the total cost of the order interactively.
+
+
 #### Razor Pages Files
 #### Razor Syntax
 #### Page Models
