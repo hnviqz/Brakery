@@ -1387,6 +1387,280 @@ Then change the quantity value and check that the order total is updated:
 
 In this section, you learned how to configure TypeScript in the application to manage your JavaScript files, then you added some logic to calcuate the total cost of the interactively. At the moment, the user can only order item at a time. In the next section, you will add a cookie-enabled shopping basket facility that tracks multiple orders for the user.
 
+##### Working with Cookies
+
+HTTP, and therefore the World Wide Web is stateless. This means that the Hypertext Transfer Protocol (HTTP), which is the underlying protocol used for communication on the World Wide Web, does not retain any informatioon about previous interactions or requests between a client (such as a web browser) and a server.
+
+When a client sends an HTTP request to a server, the server processes the request and sends back a response. However, the server does not store any information about the client's previous requests or maintain any knowledge of the client's state. Each request is treated as an independent and isolated transaction.
+
+To maintain any for of state between requests, web application must implement their own state management techniques. You have already used one such technique when you worked with TempData in the forms section. However, TempData is designed to be short-lived. By default, it is disposed of once accessed. If you want to enable your users to order multiple different goods in one financial transaction, you need a more robust solution for "remembering" each item.
+
+Cookies (which are the mechanism behind TempData) provide a solution. They are small text files that can be stored on the user's device. By default, they expire at the end of a browser session, but expiry can be extended to any time in the future.
+
+In this section, you will use a cookie to store the user's "shopping basket", which consists of a collection of order items. So to start, add a new to the Models folder that will be used to represent an order item by executing the following command:
+
+`dotnet new class -n OrderItem -o Models`
+
+Open the new file and replace its content with the following:
+
+```csharp
+namespace Bakery.Models;
+
+public class OrderItem
+{
+    public int ProductId {get;set;}
+    public decimal UnitPrice {get;set;}
+    public int Quantity {get;set;}
+}
+```
+
+Each order item represents the key value of a product, the unit price and the quantity ordered. Next, add a class to represent the basket - a collection of order items and a property that calculates the total number of items in the basket:
+
+`dotnet new class -n Basket -o Models`
+
+Change the content of the Basket.cs file to:
+
+```csharp
+namespace Bakery.Models;
+
+public class Basket
+{
+    public List<OrderItem> Items {get;set;} = new();
+    public int NumberOfItems => Items.Sum(x=>x.Quantity);
+}
+```
+
+In the next step, you will amend the Order page to populate a basket instance and store the basket in the cookie. Begin by commenting out or removing the OrderEmail and ShippingAddress properties in the OrderModel class, together with their associated form fields, labels and validation tag helpers in the order form itself. The resulting form should only include a control for the quantityh, and a hidden field for the unit price.
+
+The workflow you will implement in the revised OnPostAsync method will check to see if a cookie containing the basket exists. If it does, its contents will be hydrated as a Basket instance, and the item being ordered will be added to it. Otherwise a new Basket instance will be created with details of the order. Either way, the resulting basket will be serialised to JSON and assigned to the cookie.
+
+Start by adding a using directive to the Order.cshtml.cs to reference the System.Text.Json namespace, which contains APIs for working with JSON:
+
+```csharp
+using System.Text.Json;
+```
+
+Then change the OnPostAsync method to the following:
+
+```csharp
+public async Task<IActionResult> OnPostAsync()
+{
+    if(ModelState.IsValid)
+    {
+        Basket basket = new();
+        if(Request.Cookies[nameof(Basket)] is not null)
+        {
+            basket = JsonSerializer.Deserialize<Basket>(Request.Cookies[nameof(Basket)]);
+        }
+
+        basket.Items.Add(new OrderItem{
+            ProductId = Id,
+            UnitPrice = UnitPrice,
+            Quantity = Quantity
+        });
+
+        var json = JsonSerializer.Serialize(basket);
+        Response.Cookies.Append(nameof(Basket),json);
+
+        return RedirectToPage("/Index");
+    }
+
+    Product = await context.Products.FindAsync(Id);
+    return Page();
+}
+```
+
+Cookies consist of a key/value pair, the key being the name of the cookie and the value being the information associated with the key. Once set, they are included in every request and can be accessed via the Request.Cookies collection. Your cookie is named Basket, so you test to see if it exists. If it doesn't, it is null, so this test is important in preventing a NullReferenceException, which is a common issue when working with cookies. If it exists, you deserialise its content and assign it to the Basket that is instantiated at the beginning of the method. Then you add details of the item bwing ordered. Finally, you serialise the modified basket and assign the resulting JSON to the cookie and append it to the response, overwriting any previous version of the cookie. Then you send the user back to the home page so that they can continue ordering.
+
+To test the cookie, open the browser developer tools (F12 in Chrome or Edge). Focus on the Application tab and expand the Cookies node under Storage. Then click on the URL for your app (http://localhost:5105 in the image below). Navigate to the home page. Click on the Order Now button for any product and place an order for any quantity. Notice that two cookies appear - the Antiforgery token cookie, and the Basket cookie. Order another product and then example the contents of the Basket cookie. You should see details of the ordered items:
+
+![cookie](assets/12.jpg)
+
+Notice the value in the Expires / Max-Age column in the image. It is currently set to Session, which refers to a browser session. As soon as the browser instance is terminated, the cookie will disappear. On most shopping sites, cookie-based baskets are persisted beyond the browser session. You may have noticed that sites "remember" what you added to a basket months after you last visited them.
+
+Before moving on to the next section, you will modify your code to set an expiry time for the basket cookie via a CookieOptions object. The changes are highlighted below:
+
+```csharp
+if(ModelState.IsValid)
+{
+    Basket basket = new();
+    if(Request.Cookies[nameof(Basket)] is not null)
+    {
+        Basket = JsonSerializer.Deserialize<Basket>(Request.Cookies[nameof(Basket)]);
+    }
+
+    basket.Items.Add(new OrderItem{
+        ProductId = Id,
+        UnitPrice = UnitPrice,
+        Quantity = Quantity
+    });
+
+    var json = JsonSerializer.Serialize(basket);
+
+    var cookieOptions = new CookieOptions
+    {
+        Expires = DateTime.Now.AddDays(30)
+    };
+
+    Response.Cookies.Append(nameof(Basket),json,cookieOptions);
+
+    return RedirectToPage("/Index");
+}
+```
+
+Now if you add another item to your order, you should see the value in the Expires/Max-Age is updated to reflect an expiry time 30 days from the present:
+
+![Expire](assets/83.png)
+
+Close the browser and re-open it and the cookie persists.
+
+##### Summary
+
+In this section, you have implemented one of the most commonly-used state management techniques in web development - the cookie. You used it to store a JSON representation of your user's shopping basket, and you learned how to persist the cookie for an arbitrary period. In the next section, you will add a widget to the site representing the basket. You will implement this as a View Component - a feature that is similar to a partial view except that it encapsulates its own rendering logic.
+
+##### View Components in Razor Pages
+
+If you frequently engage in online shopping, you likely recognise the familiar sight of a basket icon displaying a number representing the quantity of items it holds.
+
+![component](assets/84.png)
+
+These icons are typically found in a consistent area across all pages of a website - the Layout file in the context of a Razor Pages application. But how does this basket obtain its data?
+
+The primary data source for a layout page is the current page itself. Once approach could involve generating the basket's data in every page of the site, or alternatively, using a base page that all pages derive from. Alternatively, it is technical possible to inject some kind of service into the layout page that provides the data, However, these methods are not advisable due to maintenance concerns and potential issues with tight coupling.
+
+A flexible and maintianable solution for this requirement is the use of a view component. By employing a view component, you can encapsulate the logic and rendering for the shopping basket into a testable and reusable component. View components are resposible for their own data retrieval, so they promote separation of concerns.
+
+View components consist of a class file and a .cshtml view file. The class file contains the logic generating the model. It can be thought of as a mini-controller, just as the Razor PageModel file is considered to be a page controller. The view file contains the template used to generate the HTML to be plugged in to the page that hosts the view component.
+
+The class file must conform to the following rules:
+
+- It must derive from the ViewComponent class
+- It must have "ViewComponent" as a suffix to the class name or it must be decorated with the [ViewComponent] attribute (or derive from a class that's decorated with the [ViewComponent] attribute)
+- It must implement a method named Invoke with a return type of IViewComponentResult (or InvokeAsync returning Task<IViewComponentResult> if you need to call asynchronous methods).
+
+By default, the view file is named Default.cshtml (case-insensitive). The view file's placement within the application's file structure is important, because the framework searches pre-defined locations for it:
+
+/Pages/Shared/Components/<component name>/Default.cshtml
+/Pages/Shared/Components/<component name>/Default.cshtml
+
+The framework will also search by walking up the directory tree from the location of the calling page until it reaches the root Pages folder. This is the same search pattern as for partials. You will use the first search location as the location for your basket view component.
+
+Add a folder to the Pages/Shared folder name Components and within that, add a folder named Basket. Having created the folder structure, execute the following command to generate a Razor view file within the Basket folder:
+
+`dotnet new view -n Default -o Pages/Shared/Components/Basket`
+
+Next, add a C# class file named BasketViewComponent to the Basket folder using the following command:
+
+`dotnet new class -n BasketViewComponent -o Pages/Shared/Components/Basket`
+
+Change the content of the BasketViewComponent class as follows. The logic depends on System.Text.Json, and is very similar to the code you used for the cookie in the previous section. It deserialses the basket cookie and passes the resulting data to a View method that returns a ViewViewComponentResult which is an implementation of IViewComponentResult:
+
+```csharp
+using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Bakery.Pages.Components.Basket;
+
+public class BaskeryViewComponent : ViewComponent
+{
+    Models.Basket basket = new();
+    if(Request.Cookies[nameof(Basket)] is not null)
+    {
+        basket = JsonSerializer.Deserialize<Models.Basket?>(Request.Cookies[nameof(Basket)]!);
+    }
+    return View(basket);
+}
+```
+
+In this example, the data retrieval logic requires no external dependencies. More commonly, you might obtain data from a database. View components are just like PageModel classes in that they act as the controller for a view, although in this case, it's a partial view. So just like with a PageModel, you can inject dependencies into their constructor. The following example illustrates how you would do that and use the InvokeAsync method to retrieve data asyncronously:
+
+```csharp
+public class BasketViewComponent:ViewComponent
+{
+    private readonly BaskeryContext context;
+    public BasketViewComponent(BaskeryContext context)
+    {
+        this.content = context;
+    }
+
+    public async Task<IViewComponentResult> InvokeAsync()
+    {
+        var data = await context.Products.ToListAsync();
+        return View(data);
+    }
+}
+```
+
+Now to the example and the view itself (which is essentially a partial page).Open the Default.cshtml file you created and replace its content with this code, which makes use of the Bootstrap badge component and icons to generate a button with a shopping basket and an indication of the number of items it holds, like the image at the beginning of this section:
+
+```razorpage
+@model Baskery.Models.Basket
+@if(Model.Items.Any())
+{
+    <button type="button" class="btn btn-sm btn-primary position-relative" title="@Model.NumberOfItems items in basket">
+        <i class="bi bi-cart4"></i>
+        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">@Model.NumberOfItems</span>
+    </button>
+}
+```
+
+The cart icon comes from Bootstrap icons, which you need to include in the page. Open the Layout.cshtml file and add the following to the head element:
+
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+```
+
+This references version 1.10.5 from a CDN, which is the current version at the time of writing.
+
+Finally, you need to render the view component. You can do this in one of two ways. You can use the Component.InvokeAsync method, or you can use a tag helper. You will use the first of these options. You can find out more about using the tag helper approach here.
+
+Open the Layout.cshtml file and place the highlighted line after the existing navigation:
+
+```html
+<div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+    <ul class="navbar-nav flex-grow-1">
+        <li class="nav-item">
+            <a class="nav-link text-dark" asp-page="/About">About</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Privacy</a>
+        </li>
+    </ul>
+    @await Component.InvokeAsync(nameof(Models.Basket))
+</div>
+```
+
+Run the application and order a few products. You should see the view component appear after ordering the first one, and the number on the badge increment with each additional order.
+
+##### Summary
+
+Whenever you need to include a data-driven widget in a layout page, the first solution to reach for is a view component. In this section, you created a class that derives from ViewComponent and a view file named Default.cshtml located in one of the default search locations. The ViewComponent class is responisble for data retrieval logic and the view file is the presentation template.
+
+The application is developing nicely and acquiring new features. In the next section, you will use Mailkit to add email capability so that you can send order confirmations to customers.
+
+##### Adding Email Support
+
+This section describes how to add email sending functionality to your Razor Pages web application. The .NET framework provides a number of APIs in the System.Net.Mail namespace for creating and sending email messages. However, the Smtpclient class, which is a core System.Net.Mail API, is obsolete on some platforms and is not recommended for use on others. Therefore, it is advisable to use a third-party library instead. The official documentation specifically mentions MailKit as an option. This section will use Mailkit to sned emails.
+
+In the last section, you added a basket icon to the layout that displays the number of items currently being ordered. In this section, you will link the icon to a checkout page, which you will create next. The checkout page will display the contents of the basket, and include the form that you initially created in the forms section to collect the customer's email and shipping address.
+
+First, open the /Pages/Shared/Components/Basket/Default.cshtml file and change the button to an anchor tag helper that has an asp-page attribute valule of "/Checkout":
+
+```html
+<a asp-page="/Checkout" class="btn btn-sm btn-primary position-relative" title="@Model.NumberOfItems items in basket">
+    <i class="bi bi-cart4"></i>
+    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">@Model.NumberOfItems
+    </span>
+</a>
+```
+
+This won't link anywhere just yet because the Checkout page doesn't exist. That's the next job. Execute the following command to create the Checkout page:
+
+`dotnet new page -o Pages -n Checkout -p:n Bakery.Pages`
+
+Clicking the basket icon will result in a GET request for the Checkout page, so you will generate the initial state of the page in the OnGetAsync handler. You will retrieve the Id values of the selected products from the basket cookie, and use that to filter the product information that you retrieve from the database for display on the page. Here is the CheckoutModel class featuring an injected BakeryContext, which is used to retrieve the data from the database and then assign it to a List<Product> property:
+
+
 
 
 
