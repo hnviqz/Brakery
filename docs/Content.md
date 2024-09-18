@@ -1848,6 +1848,161 @@ Run the app and if there are no items in the basket,select one or two.Then click
 
 Now that you have reached this point,the port from the ASP.NET Web Pages Bakery template is complete.The Razor Pages version is available on Github, but things do not stop there.Further sections are planned which will cover more Razor Pages functionality.Once completed,the next section will look at scaffolding CRUD pages so that you can add more products to the database,and modify the existing ones.
 
+##### Scaffolding CRUD Pages
+
+At this stage,the range of products offered by the Bakery site is restricted to those that were added during the seeding operation.In this section,you are going to add page to manage creating,updating and deleting product information.
+
+There are two ways to approach this task.One involves adding empty Razor pages to the application for each data operation,and subsequently implementing UI code to create suitable web forms.Additionally,you'll need to add code to the PageModel class for input processing and executing the corresponding data operation.The alternative approach is to use code generation tools to automatically generate the relevant files in a process known as Scaffolding.
+
+Scaffolding is a technique that works with Entity Framework Core and uses reflection to examine the relevant entity and to generate the required pages with forms and processing code based on the properties of the entity.It is a super-quick procedure that saves a lot of time that would otherwise be spent producing repetitive boiler-plate code,and the output can be customised as required.
+
+The utility needed for scaffolding is available as a command-line tool which you install on the development machine.To install it,execute the following command in the terminal:
+
+`dotnet tool install --global dotnet-aspnet-codegenerator`
+
+The --global switch ensure that you only need to install this tool once one the target device and it will be available for other project.
+
+You will also need to install some Nuget packages:
+
+`dotnet add package Microsoft.VisualStudio.Web.CodeGeneration.Design`
+`dotnet add package Microsoft.EntityFrameworkCore.Tools`
+`dotnet add package Microsoft.EntityFrameworkCore.Sqlserver`
+
+Once the tool and packages have been installed,execute the following command in the terminal which tells the code generator to scaffold Razor pages for the Product model class (-m or --model),using the BakeryContext (-dc or --datacontext),using the default layout (-udl or --useDefaultLayout),to output the resulting files in the Pages\Products folder (-outDir or --relativeFolderPath),and to include the validation scripts partial (-scripts or --referenceScriptLibraries) in the edit and create pages:
+
+`dotnet-aspnet-codegenerator razorpage -m Product -dc BakeryContext -udl -outDir Pages\Products -scripts`
+
+You should see the following confirmation:
+
+```
+Added Razor Page : \Pages\Products\Create.cshtml
+Added PageModel : \Pages\Products\Create.cshtml.cs
+Added Razor Page : \Pages\Products\Edit.cshtml
+Added PageModel : \Pages\Products\Edit.cshtml.cs
+Added Razor Page : \Pages\Products\Details.cshtml
+Added PageModel : \Pages\Products\Details.cshtml.cs
+Added Razor Page : \Pages\Products\Delete.cshtml
+Added PageModel : \Pages\Products\Delete.cshtml.cs
+Added Razor Page : \Pages\Products\Index.cshtml
+Added PageModel : \Pages\Products\Index.cshtml.cs
+```
+
+A new folder is added to the Pages folder name Products.In it,a full collection of CURD pages are generated - Create,Delete,Details,Edit and Index;
+
+![crud](assets/13.jpg)
+
+Execute the `dotnet watch` command and then browse to http://localhost:xxxx/products to see the existing products listed:
+
+![index](assets/14.jpg)
+
+Use the navigation links in each page to explore the other pages.Check the generated PageModel classes and notice that each of them takes the DbContext as a parameter.All EF Core CRUD operations are covered in the generated code.The markup in the content pages uses Bootstrap styles and the pages adopt the existing _Layout.cshtml file.
+
+##### Summary
+
+In this section, you have discovered how easy it is to generate pages that provide the full set of CRUD operations for an entity.You installed the scaffolding tool globally so that it is available for use in other projects,and you installed some other required packages within the project.
+
+While operational,the generated pages may not always suit your needs from a functional and/or design point of view.In the next section,you will modify the Create and Edit pages to enable uploading the product image file.
+
+##### Uploading Files
+
+In the previous section,you generated a collection of pages that support EF Core CRUD operations for the Product entity.As with the order form you created earlier,the generated forms work with strings.The scaffolded input for the product image expects a file name.As it currently stands,there is no means by which the user can store the image file on the web server.Ideally,you want to enable the user to provide an actual file and the application should take care of saving it.
+
+In this section,you will modify the Create form to accept a file upload and then you will add code to save the file so that it can be displayed where necessary within the application.
+
+> **Note**
+>
+> When storing files for a web application,the two most commonly used approaches involve storing the file within the web server's file system,or in a database in binary format.Both approaches are valid and each has its pros and cons.In this tutorials,you will store the file in the file system along with the existing image files.
+
+Three conditions must exist for successful management of file uploads within a form in an ASP.NET Core application:
+
+1. The form must use the POST method and have an enctype attribute set to multipart/form-data
+
+2. You must use an input with its type attribute set to file
+
+3. The uploaded file must bind to an IFormFile type
+
+Start by opening the /Pages/Products/Create.cshtml.cs file.Add a new property named ProductImage of type IFormFile and apply the BindProperty attribute to it along with a Display attribute:
+
+```csharp
+[BindProperty,Display(Name="Product Image")]
+public IFormFile ProductImage{get;set;}
+```
+
+Next,in the /Pages/Products/Create.cshtml file,change the form tag to include the enctype attribute referred to in the first condition above:
+
+`<form method="post" enctype="multipart/form-data">`
+
+Alter the Product.ImageName label and form control form group to reference the new IFormFile property as follows.Also,remove the validation tag helper because it is not needed:
+
+```html
+<div class="form-group">
+    <label asp-for="ProductImage" class="control-label"></label>
+    <input asp-for="ProductImage" class="form-control" accept=".jpg,.png" />
+    
+</div>
+```
+
+Now that the input tag helper is bound to an IFormFile property according to the third condition,the value for the type attribute will be set to file automatically,satisfying the second condition.Note also that the input tag helper includes an accept attribute,which should limit any file browser on the client to only expose files with the specified extensions.
+
+When you save files to the filesystem,you need to be able to build full paths.However,locations may not be consistent across environments (development,hosting etc).To mitigate this,you use the IWebHostEnvironment service (registered by default),which provides information about the current environment.As with other services,you inject this into the PageModel and assign it to a field for later use:
+
+```csharp
+public class CreateModel : PageModel
+{
+    private readonly Bakery.Data.BakeryContext _context;
+    private readonly IWebHostEnvironment environment;
+
+    public CreateModel(Bakery.Data.BakeryContext context,IWebHostEnvironment environment)
+    {
+        _context = context;
+        this.environment = environment;
+    }
+}
+```
+
+Finally,you will add code to process the upload which will assign the file name to the ImageName property of the product,and save the actual file to the images/products folder in wwwroot.This takes place in the OnPost handler within the CreateModel class,the revised version of which follows:
+
+```csharp
+public async Task<IActionResult> OnPostAsync()
+{
+    ModelState.Remove("Product.ImageName");
+    if (!ModelState.IsValid || _context.Products == null || Product == null)
+    {
+        return Page();
+    }
+            
+    Product.ImageName = ProductImage.FileName;
+    var imageFile = Path.Combine(environment.WebRootPath, "images", "products", ProductImage.FileName);
+    using var fileStream = new FileStream(imageFile, FileMode.Create);
+    await ProductImage.CopyToAsync(fileStream);
+    _context.Products.Add(Product);
+    await _context.SaveChangesAsync();
+            
+    return RedirectToPage("./Index");
+}
+```
+
+The default settings for the project has nullable reference types enabled within the Bakery.csproj file:
+
+`<Nullable>enable</Nullable>`
+
+This setting affects the behaviour of the model binder so that it sees all non-nullable strings as required by default.This includes the ImageName property of the Product class,which the scaffolded code has as a binding target.The change you made to the scaffolded form means that you will not be binding a value to this property.You are binding to the IFormFile property instead.Consquently,The ImageName property will always be null,resulting in a model validation error being registered.So the first thing you need to do is to remove any model state entries relating to this property before you check Modelstate.IsValid.
+
+Assuming that validation is successful,you assign the upload's file name to the Product.ImageName property,then you use the IFormFile.CopyToAsync method to save the uploaded image to the wwwroot/images/products folder.The IWebHostEnvironment.WebRootPath property resolves the file path to the wwwroot folder,and you use that to build up the path to the new image file.
+
+Create a new product and upload an image:
+
+![Create](assets/15.jpg)
+
+The new product should appear at the bottom on the list in the scaffolded Index page, and as a new entry on the home page:
+
+![Index](assets/16.jpg)
+
+##### Summary
+
+In this section,you learned about the three requirements for successful file uploading via a form in Razor Pages and how to implement them.You also learned how to use the `IWebHostEnvironment` service to resolve the file path to the wwwroot folder.
+
+
 
 #### Razor Pages Files
 #### Razor Syntax
