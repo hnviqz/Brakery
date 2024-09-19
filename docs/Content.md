@@ -2582,8 +2582,132 @@ The most common use for the ViewStart file is to set the layout page for each Ra
 }
 ```
 
-
 #### Razor Syntax
+
+A Razor content page acts as template for generating HTML.The typical content page includes static HTML,tag helpers that emit HTML dynamically,and C# code.The C# code is embedded within the static content and tag helpers according to a set of rules,or syntax.
+
+All code blocks must appear within @{ ... } brackets.As soon as you type @,you are assumed to have started writing c# code.Everything that follows is assumed to be code,unless you tell Razor otherwise:
+
+```csharp
+@{
+    var numbers = Enumerable.Range(1,10); //Get numbers from 1 - 10
+    foreach(var number in numbers){
+        //...
+    }
+}
+```
+
+The value of variables are rendered into HTML by prefixing them with the @ sign:
+
+`The time is @DateTime.Now`
+
+If you want to render the variable number within the loop from the above example,you have to prefix it with an @sign:
+
+```csharp
+@{
+    var numbers = Enumerable.Range(1,10); //Get numbers from 1 - 10
+    foreach(var number in numbers){
+        @number
+    }
+}
+```
+
+More usually,you will see statements declared in a code block separated from the Razor code for rendering them.Iteration and selection statement keywords (if,for,foreach,switch,while etc) do not need curly braces before them when they are being used to control rendering.A simple @ sign will do.The same is true for try...catch,if you want to use that particular construct inline:
+
+```csharp
+@{ var numbers = Enumerable.Range(1,10)}
+@foreach(var number in numbers){
+    @number
+}
+```
+
+If you want to render the result of a single line expression,you use the @( ... ) syntax:
+
+```csharp
+@{var numbers = Enumerable.Range(1,10);}
+@foreach(var number in numbers){
+    @(number * 10)
+}
+```
+
+If you want to include static content that includes a @ sign (e.g. an email address),you need to tell Razor that this instance of the @ sign doesn't indicate code.You do that by doubling or escaping the @ sign:
+
+`For support,contact support@domain.com`
+
+If you want to mix inline variables with items to be rendered literally (verbatim strings) within a code block,there are three ways to tell Razor where the code pauses and the literal text or markup begins.The first,if the additional item is text only,is to prefix the text with @: before the first instance of text in the line:
+
+```csharp
+@{ var numbers = Enumerable.Range(1,10);}
+@foreach(var number in numbers){
+    @(number * 10)@:&nbsp;
+}
+```
+
+You only need to use the @: operator once per line:
+
+```csharp
+@{ var numbers = Enumberable.Range(1,10);}
+@foreach(var number in numbers){
+    @(number*10)@: * 10 = @(number*10)
+}
+```
+
+Razor also looks for html tags.If it sees one,it jumps out of code and will only jump back into code when it sees a matching closing tag:
+
+```csharp
+@{ var numbers = Enumerable.Range(1, 10); }
+    
+@foreach(var number in numbers){
+    <span>@(number * 10)&nbsp;</span>
+}
+```
+
+Razor can recognise self-closing tags:
+
+```csharp
+@{ var numbers = Enumerable.Range(1, 10);  }
+@foreach(var number in numbers){
+    @(number * 10)<br />
+}
+```
+
+If you do not want to render html tags,you can use the <text> tag to tell Razor where code ends and begins again.The <text> tag is not rendered to the browser:
+
+```csharp
+@{ var numbers = Enumberable.Range(1,10);}
+@foreach(var number in numbers){
+    <text>@(number*10)*10=@(number*10)&nbsp;</text>
+}
+```
+
+Comments within a code block can be denoted by two forward slashes //, as can be seen in all the preceding examples.Alternatively,you can use /*...*/ or @*...*@.If you want to put a server side comment outside of a code block,precede the line @*
+
+```csharp
+@{
+    /*Get numbers from 1 - 10*/
+    //Get numbers  between 1 - 10
+    @*Get numbers between 1 - 10*@
+    var numbers = Enumerable.Range(1, 10); 
+}
+
+@foreach(var number in numbers){
+    @number
+}
+```
+
+You can add comments outside of code blocks using the @*...*@ syntax:
+
+```csharp
+@* Get numbers between 1 - 10 *@
+@{var numbers = Enumerable.Range(1,10);}
+@foreach(var number in numbers){
+    @number
+}
+```
+
+The comments are not rendered to the browser.
+
+
 #### Page Models
 #### Tag Helpers
 #### View Components
