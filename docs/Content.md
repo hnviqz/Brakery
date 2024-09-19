@@ -2005,6 +2005,316 @@ In this section,you learned about the three requirements for successful file upl
 
 
 #### Razor Pages Files
+
+##### Razor Pages
+
+All Razor files end with .cshtml.Most Razor files are intended to be browsable and contain a mixture of client-side and server-side code,which,when processed,results in HTML being sent to the browser.These pages are usually referred to as "content pages".This section takes a deeper look at content pages,and their associated PageModel files.
+
+##### Content Pages
+
+For a file to act as a Razor content page,it must have three characteristics:
+
+- It cannot have a leading underscore in its file name
+- The file extension is .cshtml
+- The first line in the file is @page
+
+Placing the @page directive as the first line of code is critical.If this is not done,the file will not be seen as a Razor page,and will not be found if you try to browse to it.There can be empty space before the @page directive,but there cannot be any other characters,even an empty code block.The only other content permitted on the same line as the @page directive is a route template.
+
+Content pages can have a layout file specified,but this is not mandatory.They can optionally include code blocks,HTML,javaScript and inline Razor code.
+
+##### Razor Syntax
+
+Content pages are largely comprised of HTML,but they also include Razor syntax which enables the inclusion of executable C# code within the content.The C# code is executed on the server,and typically results in dynamic content being included within the response sent to the browser.
+
+##### Single File Approach
+
+Although not recommended,it is possible to develop Razor Page applications that rely solely on content pages.The following example features an approach that is most like that which is familiar to developers with a scripting background,like PHP or classic ASP:
+
+```cshtml
+@page
+@{
+    var name = string.Empty;
+    if(Request.HasFormContentType)
+    {
+        name = Request.Form["name"];
+    }
+}
+
+<div>
+    <form method="post">
+        <div>Name: <input name="name" /></div>
+        <div><input type="submit" /></div>
+    </form>
+</div>
+
+<div>
+    @if(!string.IsNullOrEmpty(name))
+    {
+        <p>Hello @name!</p>
+    }
+</div>
+```
+
+The Razor content page requires the @page directive at the top of the file.The HasFormContentType property is used to determine whether a form has been posted and the Request.Form collection is referenced within a Razor code block with the relevant value within it assigned to the name variable.
+
+The Razor code block is denoted by an opening @{ and is terminated with a closing }.The content within the block is standard C# code.
+
+Single control structures do not need a code block.You can simply prefix them with the @ sign.This is illustrated by the if block in the preceding example.
+
+To render the value of a C# variable or expression,you prefix it with the @ sign as shown with the name variable within the if block.
+
+##### Functions Blocks
+
+The next example results in the same functionality as the previous example,but it uses a @functions block to declare a public property which is decorated with the BindProperty attribute,ensuring that the property takes part in model binding,removing the need to manually assign form values to variables.
+
+```html
+@page
+@functions {
+    [BindProperty]
+    public string name{get;set;}
+}
+
+<div style="margin-top:30px;">
+    <form method="post">
+        <div>Name:<input name="name" /></div>
+        <div><input type="submit" /></div>
+    </form>
+    @if(!string.IsNullOrEmpty(Name))
+    {
+        <p>Hello @Name!</p>
+    }
+</div>
+```
+
+This approach is an improvement on the previous in that is makes use of strong typing,and while the processing logic can be restricted to the @functions block,the page will become  more difficult to maintain and test.Nevertheless,it is possible to declare methods and even nested classes in the @functions block.
+
+You can also use the @functions block to declare local methods that include HTML to act as display helpers for the current page.You might do this if a page has multipe blocks of code that included HTML and require similar formatting to be applied.This is only possible in ASP.NET Core 3.x
+
+In the following examples,a method is declared that formats DateTime values:
+
+```razor
+@function{
+    void DisplayDate(DateTime dt)
+    {
+        <span class="date">@dt.ToString("dddd,dd MMMM yyyy")</span>
+    }
+}
+```
+
+Wherever you want to render a date with this formatting in a page,you would do the following:
+
+`@DisplayDate(myDate)`
+
+This is useful if you ever need to modify the output,since you only need to make changes in one place.
+
+It is possible to do something similar in Razor Page 2.x,but the method must be declared in a code block as follows:
+
+```razor
+@Func<DateTime,IHtmlContent> DisplayDate = @<span class="date">@item.ToString("dddd,dd MMMM yyyy")</span>;
+```
+
+The item variable is a special one that refers to the first parameter passed in to the method.Usage is the same,but you will need to add a using directive for Microsoft.AspNetCore.Html.
+
+##### PageModel Files
+
+The recommended way to develop Razor Pages applications is to minimise the amount of server-side code in the content page to the barest minimum.Any code relating to the processing of user input or data should be placed in PageModel files,which share a one-to-one mapping with their associated content page.They even share the same file name,albet with an additional .cs on the end to denote the fact that they are actually C# class files.
+
+The following code shows the Example.cshtml file adapted to work with a PageModel:
+
+```html
+@page
+@model ExampleModel
+<div style="margin-top:30px;">
+    <form method="post">
+        <div>Name: <input asp-for="Name" /></div>
+        <div><input type="submit" /></div>
+    </form>
+    @if(!string.IsNullOrEmpty(Model.Name))
+    {
+        <p>Hello @Model.Name!</p>
+    }
+</div>
+```
+
+And this is the code for the PageModel class:
+
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+
+namespace RazorPages.Pages
+{
+    public class ExampleModel:PageModel
+    {
+        [BindProperty]
+        public string Name{get;set;}
+    }
+}
+```
+
+The PageModel class has a single property defined as in the previous example,and it is decorated with the BindProperty attribute.The content page no longer has the @functions block,but it now includes and @model directive,specifying that the ExampleModel is the model for the page.This also enables Tag helpers in the page,further taking advantage of compile-time type checking.
+
+The default projects generate content pages paired with PageModel files.This is the recommended approach.However,it is also useful to know how to work with content pages without a PageModel for cirumstances where they are not needed.
+
+##### Different types of Razor files
+
+All Razor files end with .cshtml.Most Razor files are intended to be browsable and contain a mixture of client-side and server-side code,which,when processed,results in HTML being sent to the browser.These pages are usually referred to as "content page".Other Razor files have a leading underscore (_) in their file name.These files are not intended to be browsable.The leading underscore is often used for naming partial pages,but three files named in this way have a particular function within a Razor Pages application.
+
+##### _Layout.cshtml
+
+The _Layout.cshtml file acts a template for all content pages that reference it.Consistent part of a site's design are declared in the _Layout.cshtml file.These can include the header,footer,site navigation and so on.Typically,the _Layout.cshtml file also includes the <head> section of the page,so they also reference the common CSS style sheet files and JavaScript files including analytics srvice's files.If you want to make changes to the overall design of the site,you often only need to make adjustments to the content of the _Layout.cshtml file.
+
+##### _ViewStart.cshtml
+
+The _ViewStart.cshtml file contains code that executes after the code in any content page in the same folder or any child folders.It provides a convenient location to specify the layout file for all content pages that are affected by it,and that is typically what you see in the _ViewStart.cshtml file that comes with any Razor Pages (or MVC) template.
+
+##### _ViewImports.cshtml
+
+The purpose of the _ViewImports.cshtml file is to provide a mechanism to make directives available to Razor pages globally so that you don't have to add them to pages individually.
+
+The default Razor Pages template includes a _ViewImports.cshtml file in the Pages folder - the root folder for Razor pages.All Razor pages in the folder heirarchy will be affected by the directives set in the _ViewImports.cshtml file.
+
+##### Partial Pages
+
+Partial Pages or Views are Razor files containing snippets of HTML and server-side code to be included in any number of pages or layouts.Partial pages can be used to break up complex pages into smaller units,thereby reducing the complexity and allowing teams to work on different units concurrently.
+
+##### Creating Partial Pages
+
+Partial pages are cshtml files that do not take part in routing.Therefore you can use any of the Razor templates to generate a partial page,except the Razor Page template that results in a PageModel file being created.
+
+##### Rendering Partial Pages
+
+Partial pages are included in the calling page in a number of ways.From ASP.NET Core 2.1,the recommended mechanism for including partial pages is the Partial tag helper:
+
+`<partial name="_MenuPartial" />`
+
+The name attribute takes the name of the partial file without the file extension,or the path of the partial.The value that you provide the name attribute is case-insensitive.The partial tag helper renders the content of the partial asynchronously thereby improving application performance.
+
+Prior to ASP.NET Core 2.1, you can use the page's Html property which has a Partial() method:
+
+`@Html.Partial("_MenuPartial")`
+
+The Html property also offers 3 other methods for rendering the content of partial pages: PartialAsync,RenderPartial and RenderPartialAsync.Both methods ending with Async are for rendering partials that contain asynchronous code,although the preferred way to render separate units of UI that are dependent on asynchronous processing is to use ViewComponents.Both of the methods with Render in their name return void whereas the other two methods return an IHtmlString (raw HTML). Therefore the Render methods must be called within a code block as a statement:
+
+`@{ Html.RenderPartial("_MenuPartial"); }`
+
+The Render methods result in their output being written directly to the response,so they may result in improved performance in certain  situations.However, in the majority of cases,these improvements are unlikely to be significant,so the Partial and PartialAsync methods are recommended on the basic that you should strive to minimise the number of code blocks in your Razor page.
+
+Calls to any of the rendering methods do not result in Viewstart files being executed.
+
+##### Naming And Locating Partial Pages
+
+Whether you use the tag helper or the Html.Partial or Html.RenderPartial methods you do not have to pass in the path of the partial file.The framework searches by walking up the directory tree from the location of the calling page looking for the file name that you pass in as long as you do not include the file extension,until it reaches the root Pages folder.Once this has been exhausted,the formally registered locations are searched.The default registered search paths are Pages/Shared (from ASP.NET Core 2.1 onwards) and Views/Shared (the default location for partial views in an MVC application).
+
+If the calling page is located in Pages/Orders the search for a partial name _Foo.cshtml will include the following locations:
+
+- Pages/Orders/_Foo.cshtml
+- Pages/_Foo.cshtml
+- Page/Shared/_Foo.cshtml
+- Views/Shared/_Foo.cshtml
+
+If the page calling the partial is located in an area,the search will also start in the currently executing page's folder,and then walk up the directory tree within the area.Once the area folder structure has been exhausted,registered partial locations are searched relative to the area's folder location (i.e. Pages/Shared and Views/Shared within the area).Finally,the registered locations themselves are searched.
+
+The following search locations assume that the calling page in located at Areas/Orders/Pages/Archive/Index.cshtml:
+
+- Areas/Orders/Pages/Archive/_Foo.cshtml
+- Areas/Orders/Pages/_Foo.cshtml
+- Areas/Orders/Pages/Shared/_Foo.cshtml
+- Areas/Orders/Views/Shared/_Foo.cshtml
+- Pages/Shared/_Foo.cshtml
+- Views/Shared/_Foo.cshtml
+
+If you provide the file name with its file extension,the framework assumes that you are passing in a relative path rooted in the folder containing the current page being executed.
+
+It is possible to add other locations to the default registered search paths (Pages/Shared and Views/Shared) using Razor view engine options in the ConfigureServices method in StartUp.The following code block adds the Pages/Partials folder to the search paths,meaning that you can place partial files there and have them found:
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.Configure<RazorViewEngineOptions>(options=>{
+        options.PageViewLocationFormats.Add("/Pages/Partials/{0}"+RazorViewEngine.ViewExtension);
+    });
+}
+```
+
+The new location will be added to the end of the list of search locations.
+
+Partial files do not have any kind of special naming requirements.The default site template includes partials named _ValidationScriptsPartial.cshtml and __CookieConsentPartial.cshtml.The leading underscore in the file names is a convention.However,the underscore is not required.
+
+##### Models And Strongly Typed Partials
+
+By default,the data passed to the partial is the view data for the current page.This includes its PageModel class,which is accessible via the partial's Model property,just like a regular Razor page.The default Model in a partial is a dynamic type,which can lead to runtime binding errors resulting from typos.
+
+Just like standard Razor pages,partial pages support the @model directive specifying the type for the partial's data model,which enables you to strongly type the partial.It also enables you to specify a subset of the current page's data as the model for the partial.All of the rendering methods have overloaded versions that take a model to be consumed in the partial.
+
+The following example features a standard Razor page named PartialDemo.cshtml along with its PageModel file content (shown first).The PageModel class includes a property named Animals of type List<string> that will be passed from the PartialDemo content page as a model to the partial:
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+
+
+namespace RazorPagesTest.Pages
+{
+    public class PartialDemoModel:PageModel
+    {
+        public List<string> Animals = new List<string>();
+        public void OnGet()
+        {
+            Animals.AddRange(new[]{"Antelope","Badger","Cat","Dog"});
+        }
+    }
+}
+```
+
+Here is the content page PartialDemo.cshtml,which includes a partial tag helper passing the Animals property to Partial1.cshtml as its model:
+
+```html
+@page
+@model PartialDemoModel
+@{
+
+}
+<partial name="_Partial1" model="Model.Animals" />
+```
+
+And finally the content of the partial,named _Partial1.cshtml with the @model declaration:
+
+```html
+@model List<string>
+
+<h1>List of Animals</h1>
+<ul>
+    @foreach(var item in Model)
+    {
+        <li>@item</li>
+    }
+</ul>
+```
+
+The PageModel includes a property named Animals,which is a list of strings.This is populated in the OnGet handler and then passed to the partial page in the tag helper.
+
+The partial has an @model directive,specifying that the model for the page is expected to be a list of string.The content is iterated and rendered as an unordered list:
+
+![unorderedlist](assets/88.png)
+
+Note that the partial page does not feature an @page directive.That would make the file a full Razor page and will lead to a NullReferenceException related to the model not being declared when the framework attempts to invoke it - because there is no associated PageModel file.
+
+##### Partials In Layout Pages
+
+Partials may seem like a suitable solution for snippets of UI in layout pages,but they may not always be the best solution.If the snippet of UI relies on data (e.g. a data-drive menu),you should use a View Component instead.This is because a partial's data comes from the current page (as explained above),whereas a view component is responsible for obtaining its own data.
+
+##### Layout Pages
+
+Most sites feature the same content on every page,or within a large number of pages.Headers,footers,and navigation systems are just some examples.Site-wide scripts and style sheets also fall into this category. Adding the same header to every page in your site breaks the DRY principle (Don't Repeat Yourself).If you need to change the appearance of the header,you need to edit every page.The same applies to other common content,if you want to upgrade your client-side framework,for example.Some IDEs include tools for making replacements in multiple files,but that's not really a robust solution.The proper solution to this problem is the Layout page.
+
+The layout page acts as a template for all pages that reference it.The pages that reference the layout page are called content pages.Content pages are not full web pages.They contain only the content that varies from one page to the next.The code example below illustrates a very simple layout page:
+
+
 #### Razor Syntax
 #### Page Models
 #### Tag Helpers
