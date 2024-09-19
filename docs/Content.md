@@ -2314,6 +2314,274 @@ Most sites feature the same content on every page,or within a large number of pa
 
 The layout page acts as a template for all pages that reference it.The pages that reference the layout page are called content pages.Content pages are not full web pages.They contain only the content that varies from one page to the next.The code example below illustrates a very simple layout page:
 
+```html
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title></title>
+        <link href="/css/site.css" rel="stylesheet" type="text/css" />
+    </head>
+    <body>
+        @RenderBody()
+    </body>
+</html>
+```
+
+What makes this a layout page is the call to the RenderBody method.That is where the result from processing the content page will be placed.Content pages reference their layout page via the layout property of the page,which can be assigned in a code block at the top of a content page to point to a relative location:
+
+@{
+    Layout = "_Layout";
+}
+
+The value passed to the Layout property is either the name of the file without the extension,or the relative file path,rooted in the project.
+
+Layout pages are typically named _Layout.cshtml,the leading underscore preventing them from being browsed directly.Standard practice is to specify the layout page in a __ViewStart.cshtml file,which affects all content pages in the folder in which it is placed,and all subfolders.
+
+By default,the layout file is placed in the Pages/Shared folder,but it can be placed anywhere in the application folder structure.Use of the __ViewStart file to centralise the location of the layout makes updating to the new location easy:
+
+```html
+@{
+    Layout="/Themes/MyTheme/_Layout.cshtml";
+}
+```
+
+You can also specify the location of the layout in the Razor Page itself.This will override the instruction set in the _ViewStart file.If you don't want page to use the layout specified in the _ViewStart file,you can pass null to the Layout property:
+
+```html
+@{
+    Layout = null;
+}
+```
+
+You might do this if your page is used to return XML,for example.
+
+##### Locating a Layout
+
+If you provide the name of the file to the Layout property instead of the file path,the Razor Pages framework searches a set of predefined locations for the layout:
+
+```html
+@{
+    Layout="_Layout";
+}
+```
+
+The framework searches by walking up the directory tree from the lcoation of the calling page looking for the file name that you pass in as long as you do not include the file extension,until it reaches the root Pages folder.Once this has been exhausted,the formally registered locations are searched.The default registered search paths are Pages/Shared (from ASP.NET Core 2.1 onwards) and Views/Shared (the default location for layout pages in an MVC application).
+
+If the calling page is located in Pages/Orders the search for a layout named _Layout will include the following locations:
+
+```
+Pages/Orders/_Layout.cshtml
+Pages/_Layout.cshtml
+Pages/Shared/_Layout.cshtml
+Views/Shared/_Layout.cshtml
+```
+
+If the page calling the layout is located in an area,the search will also start in the currently executing page's folder,and then walk up the directory tree within the area.Once the area folder structure has been exhausted,registered layout locations are searched relative to the area's folder location (i.e. Pages/Shared and Views/Shared within the area).Finally,the registered locations themselves are searched.
+
+The following search locations assume that the calling page in located at Areas/Orders/Pages/Archive/Index.cshtml:
+
+```
+Areas/Orders/Pages/Archive/_Layout.cshtml
+Areas/Orders/Pages/_Layout.cshtml
+Areas/Orders/Pages/Shared/_Layout.cshtml
+Areas/Orders/Views/Shared/_Layout.cshtml
+Pages/Shared/_Layout.cshtml
+Views/Shared/_Layout.cshtml
+```
+
+This is the same discovery process as is used for partial pages.
+
+##### Adding Additional Search Locations
+
+You can specify additional search locations if you want to store you layouts in another place.This is done by configuring the RazorViewEngineOptions in the ConfigureServices method in Startup to add additional entries to the PageViewLocationFormats collection:
+
+```csharp
+services.Configure<RazorViewEngineOptions>(options=>{
+    options.PageViewLocationFormats.Add("/Pages/Shared/Layouts/{0}"+RazorViewEngine.ViewExtension);
+});
+```
+
+The code above adds /Pages/Shared/Layouts/ to the list of locations that will be searched for layouts and partials.
+
+##### Sections
+
+The RenderBody method placement within the layout page determines where the content page will be rendered,but it is also possible to render other content supplied by the content page within a layout page.This is controlled by the placement of calls to the RenderSectionAsync method.The following example of a call to this method is taken from the layout page that forms part of the default template Razor Pages site:
+
+```csharp
+@await RenderSectionAsync("Scripts",required:false)
+```
+
+This call references a section named "Scripts" - intended for page-specific script file references or blocks of javascript code so that they can be located just before the closing </body> tag.The second argument,required determines whether the content page must provide content for the named section.In this example,required is set to false,resulting in the section being optional.If the section is not optional,every content page that references the layout page must use the @section directive to define the section and provide content:
+
+```html
+@section Scripts{
+    //content here
+}
+```
+
+In some cases,you might want to make a section optional,but you want to provide some default content in the event that the content page didn't provide anything for the section.You can use the IsSectionDefined method for this:
+
+```
+@if(IsSectionDefined("OptionalSection"))
+{
+    @RenderSection("OptionalSection")
+}
+else
+{
+    //default content
+}
+```
+
+There may be circumstances when you don't want to render the content of a section that has been defined in the content page.You can use the IgnoreSection method to achieve this:
+
+```
+@if(!IsAdmin){
+    @{
+        IgnoreSection("admin");
+    }
+}else
+{
+    @await RenderSectionAsync("admin")
+}
+```
+
+Note that the IgnoreSection method returns void,which is why it is called within a code block.
+
+##### Nested Layouts
+
+Layout pages can be nested,that is,it is perfectly legal to specify the layout for a layout page.The following example shows a master layout which contains the head and style references,and two sub-layout pages.One has a single column for content and the other has two columns,the second of which contains a section.Content pages can reference either of the two sub-layout pages and still benefit from the common mark up provided by the master layout file.
+
+__MasterLayout.cshtml
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title></title>
+        <link href="/css/site.css" rel="stylesheet" type="text/css" />
+    </head>
+    <body>
+        @RenderBody()
+    </body>
+</html>
+```
+SubLayout1.cshtml
+
+```html
+
+@{
+    Layout = "/_MasterLayout";
+}
+<div class="main-content-one-col">
+@RenderBody()
+</div>
+```
+
+SubLayout2.cshtml
+
+```html
+@{
+    Layout = "/_MasterLayout";
+}
+<div class="main-content-two-col">
+@RenderBody()
+</div>
+<div>
+@RenderSection("RightCol")
+</div>
+```
+
+Any sections defined in the master layout should also be redefined in child layouts:
+
+_MasterLayout.cshtml
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title></title>
+        <link href="/css/site.css" rel="stylesheet" type="text/css" />
+    </head>
+    <body>
+        @RenderBody()
+        @RenderSection("scripts", required:false)
+    </body>
+</html>
+
+```
+
+_ChildLayout.cshtml
+
+```html
+@{
+    Layout = "/_MasterLayout";
+}
+<div class="main-content-two-col">
+@RenderBody()
+</div>
+@section scripts {
+  @RenderSection("scripts", required: false)
+}
+```
+
+##### The ViewImports File
+
+The purpose of the __ViewImports.cshtml file is to provide a mechanism to centralise directives that apply to Razor pages so that you don't have to add them to pages individually.
+
+The default Razor Pages template includes a __ViewImports.cshtml file in the Pages folder - the root folder for Razor pages.All Razor pages in the folder hieracrchy will be affected by the directives set in the __ViewImports.cshtml file.
+
+The __ViewImports.cshtml file supports the following directives:
+
+- @addTagHelper
+- @inherits
+- @namespace
+- @inject
+- @model
+- @removeTagHelper
+- @tagHelperPrefix
+- @using
+
+The @addTagHelper,@removeTagHelper and @tagHelperPrefix directives relate to the management of Tag Helpers.The @namespace directive is used to specify the namespace of the pages affected by the ViewImports file,typically MyApplication.Pages.Dependency injection is supported through the use of the @inject directive.The @model directive is used to specify the Model,although you usually apply this on a page-by-page basic.The @using directive makes other selected namespaces availiable to all pages in the folder hierarchy to save you having to provide fully qualified names when working with their types.
+
+The default __ViewImports.cshtml file typically contains three directives: a @using directive specifying the default namespace of your application,a @namespace directive and an @addTagHelper directive making the Microsoft.AspNetCore.Mvc.TagHelper library contents availiable to your pages:
+
+```csharp
+@using MyApplication
+@namespace MyApplication.Pages
+@addTagHelper *,Microsoft.AspNetCore.Mvc.TagHelpers
+```
+
+The @namespace directive specifies the root namespace that applies to pages.By convention,it is composed from a dot-separated path to the Razor Page location with the name of the application provided as the "root" and is the same as the one applied to generated PageModel classes.
+
+You can only have one @namespace directive per ViewImports file.Adding multiple @namespace directives to the same file will result in build errors.
+
+You can add further @using directives to bring additional namespaces into scope:
+
+```csharp
+@using MyApplication
+@using MyApplication.Models
+@using MyApplication.Services
+@using MyApplication.Pages
+@addTagHelper *,Microsoft.AspNetCore.Mvc.TagHelpers
+```
+
+There is no limit to the number of __ViewImports.cshtml files that a Razor Pages application can support.You can place additional _ViewImports.cshtml files in subfolders to either add to the top level _ViewImports.cshtml file's directives,or to override its settings.The @addTagHelper, @removeTagHelper, @inject and @using directives are additional,while the other directives override each other,the closer you get to the page.So,for example,the namespace specified in the root Pages folder will be overridden for pages in a subfolder if a different value is assigned to the @namespace directive in a _ViewImports.cshtml file in that sub-folder.
+
+##### The ViewStart file
+
+The Razor Pages _ViewStart.cshtml file contains code that is executed at the start of each Razor Page's execution.The ViewStart file affects all Razor Pages located in the same folder as the ViewStart file or any of its subfolders.ViewStart files are hierarchical.Those located in subfolders will be executed after those located higher up the file system hierarchy.
+
+The most common use for the ViewStart file is to set the layout page for each Razor Page.Since the ViewStart file is a Razor Page,server-side code must be located in a Razor code block:
+
+```html
+@{
+    Layout = "_Layout";
+}
+```
+
 
 #### Razor Syntax
 #### Page Models
