@@ -2707,8 +2707,442 @@ You can add comments outside of code blocks using the @*...*@ syntax:
 
 The comments are not rendered to the browser.
 
-
 #### Page Models
+
+##### The Razor Pages PageModel
+
+The main purpose of the Razor Pages PageModel class is to provide clear separation between the UI layer (the .cshtml view file) and processing logic for the page.There are a number of reasons why this separation is beneficial:
+
+- It reduces the complexity of the UI layer making it easier to maintain.
+- It facilitates automated unit testing.
+- It enables greater flexibility for teams in that one member can work on the view while another can work on the processing logic.
+- It encourages smaller,reusable units of code for specific purposes,which aids maintenance and scalability (i.e. the ease with which the application's code base be added to in order to cater for additional future requirements).
+
+PageModel classes are created when you choose the Razor Page (with page model) option when adding a new item:
+
+![razorpages](assets/89.png)
+
+The PageModel class is declared in a separate class file - a file with a .cs extension.PageModel classes are placed in the same namespace as the page,which by default follows the pattern <default namespace>.<root folder name> and are named after the page file,with "PageModel" as a suffix.A PageModel class for About.cshtml will be named AboutPageModel and will be generated in a file named About.cshtml.cs.
+
+In terms of its features and functionality,the PageModel class is a combination of a Controller and a ViewModel.
+
+##### Controllers
+
+Controllers feature in a number of design and architectural patterns concernted with the presentation layer of an application.They are most commonly found in the Model-View-Controller (MVC) pattern,where the controller is defined as "a controller that handlers all requests for a website".In the ASP.NET MVC implementation,front controllers typically handle all the requests for a feature area in a website represented by the first part of the controller's name.A ProductController,for example,will handle all requests related to the Product entity or feature.A page controller is "an object that handles a request for a specific page or action on a website".A Razor PageModel class is an implementation of the Page Controller pattern.
+
+The Page Controller pattern is characterised by the fact that there is a one-to-one mapping between pages and their controllers.The role of the controller in the Page Controller pattern is to accept input from the page request,to ensure that any requested operations on the model (data) are applied,and then to determine the correct view to use for the resulting page.
+
+##### ViewModel
+
+A View Model is an implementation of the Presentation Model design pattern.It is a self-contained class that represents the data and behaviour of a specific "view" or page.The view model pattern is used extensively in MVC application development,where it mainly represents data,but typically little behaviour.In Razor Pages,the PageModel is also the view model.
+
+Razor Pages is sometimes described as implementing the MVVM (Model,View,ViewModel) pattern.It doesn't.The MVVM pattern is applied to applications where the presentation and model share the same layer.It is popular in WPF,mobile application development,and some Javascript libraries.A main feature of MVVM is that the view is updated automatically to reflect changes to the underlying model.This process is usually controlled by two way binding and an implementation of the Observer pattern.In a server-side web application,the model  resides on the server and the view is on the client.You need to implement additional complicated layers to achieve anything like the Observer pattern is such a distributed architecture.
+
+##### Default Template
+
+The following code shows the content that is generated for each file when you use the Razor Page (with page model) option to add a new page to a Razor Pages application:
+
+(Index.cshtml)
+
+```html
+@page
+@model IndexModel
+@{
+
+}
+```
+
+(Index.cshtml.cs)
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+
+namespace LearnRazorPages.Pages
+{
+    public class IndexModel : PageModel
+    {
+        public void OnGet()
+        {
+
+        }
+    }
+}
+```
+
+The PageModel class is made available to the view file via the @model directive.The generated PageModel class inherits from Microsoft.AspNetCore.Mvc.RazorPages.PageModel,which has a number of properties that enable you to work with various items associated with the HTTP request such as the HttpContext,Request,Response,ViewData,ModelState and TempData.It also includes a range of methods that enable you to specify the type of the resulting response,including another Razor Page,a file,some JSON,a string or a redirection to another resource.
+
+##### Request Processing
+
+Request processing in a PageModel is performed within handler methods which are analogous to Action methods on an ASP.NET MVC controller.By convention,handler method selection is based on matching HTTP verb that was used for the request with the name of the handler method using the pattern On<verb> with Async appended optionally to denote that the method is intended to run asynchronously.The OnGet or OnGetAsync method is selected for GET requests and the OnPost or OnPostAsync method is selected for POST requests.If you want to create a fully REST-ful application,all other HTTP verbs (PUT,DELETE etc) are also supported.
+
+The matching algorithm only looks at the name of the method.Neither the return type nor any parameters are taken into consideration.The only other stipulation for a handler method is that it must be public.
+
+Named handler methods allow you to specify a number of alternative methods for a specific verb.You might want to use these if your page contains multiple forms,each requiring a different process to be executed.
+
+##### Properties and Methods
+
+The properties and methods that you apply to PageModel class are available on the Model property in the Razor Page.The properties can be simple ones like string,int,DateTime etc,or they can be complex classes,or a combination.If your page is designed for adding new products to a database,you might have the following range of properties:
+
+```csharp
+public string Name{get;set;}
+public SelectList Categories{get;set;}
+public int CategoryId{get;set;}
+```
+
+You can also add properties or methods to the PageModel that take care of formatting values for display,to minimise the amount of code you add to the Razor Page.The following example shows how you can use a property to format the result of a calculation:
+
+```csharp
+public List<OrderItems> Orders {get;set;}
+public string TotalRevenue => Orders.Sum(o=>o.NetPrice).ToString("f");
+```
+
+Then your Razor will only need @Model.TotalRevenue to display the total of all sales to two decimal places,negating the need for LINQ calculations in the HTML.
+
+The properties that you add to the PageModel also enable you to develop a form in a strongly typed manner,which reduces the potential for runtime errors.They are available to the for attribute of the Label and Input taghelpers,for example.
+
+##### Handler Methods in Razor Pages
+
+Handler methods in Razor Pages are methods that are automatically executed as a result of a request,implicitly returning a PageResult for the current page.The Razor Pages framework uses a naming convention to select the appropriate handler method to execute.The default convention works by matching the HTTP method used for the request to the name of the method,which is prefixed with "On":OnGet(),OnPost(),OnPut etc.
+
+Handler methods also have optional asynchronous equivalents:OnPostAsync(),OnGetAsync() etc.You do not need to add the Async suffix.The option is provided for developers who prefer to use the Async suffix on methods that contain asynchronous code.
+
+As far as the Razor Pages framework is concerned,OnGet and OnGetAsync are the same handler.You cannot have both in the same page.If you do,framework will raise an exception:
+
+> InvalidOperationException:Multiple handlers matched.The following handlers matched route data and had all constraints satisfied:
+>
+> void OnGetAsync(), void OnGet()
+
+Parameters play no part in disambiguating between handlers based on the same HTTP method,despite the fact that the compiler will allow it.Therefore the same exception will be raised even if the OnGet method takes parameters and the OnGetAsync method doesn't.
+
+Handler methods must be public and can return void,Task if asynchronous,or an IActionResult (or Task<IActionResult>).
+
+The following example illustrates basic usage in a PageModel:
+
+```csharp
+public class IndexModel : PageModel
+{
+    public string Message {get;set;}
+
+    public void OnGet()
+    {
+        Message = "Get used";
+    }
+
+    public void OnPost()
+    {
+        Message = "Post used";
+    }
+}
+```
+
+The content age includes a form that uses the POST method and a hyperlink,which initiates a GET request:
+
+```html
+<h3>@Message</h3>
+
+<form method="post">
+    <button class="btn btn-default">Click to post</button>
+</form>
+<p><a href="/" class="btn btn-default">Click to Get</a></p>
+```
+
+When the page is first navigated to, the "Get used" message is displayed because the HTTP GET verb was used for the request,firing the OnGet() handler.
+
+When the "Click to post" button is pressed,the form is posted and the OnPost() handler fires,resulting in the "Post used" message being displayed.
+
+Clicking the hyperlink results in the "Get used" message being displayed once more.
+
+
+> :information_source: Note that HTTP is stateless.Any values initialised in the OnGet handler are not available in the OnPost handler.If you completely remove the assignment in the OnPost handler,Message will be null when the page displays.If you want to reuse a value in an OnPost handler,you must initialise it again.
+>
+> The most common example of this is when you redisplay a form that contains dropdowns after an invalid submission.You populate the items from a database in OnGet,but forget to repopulate in OnPost if ModelState is not valid.
+
+##### Named Handler Methods
+
+Razor Pages includes a feature called "named handler methods".This feature enables you to specify multiple methods that can be executed for a single verb.You might want to do this if your page features multiple forms,each one responsible for a different outcome,for example.
+
+The following code shows a collection of named handler methods declared in a code block at the top of a Razor page (although they can also be placed in the PageModel class if you are using one):
+
+```html
+@page
+@{
+    @functions{
+        public stirng Message {get;set;}="Initial Request";
+
+        public void OnGet()
+        {
+
+        }
+
+        public void OnPost()
+        {
+
+        }
+        public void OnPostDelete()
+        {
+            Message = "Delete handler fired";
+        }
+        public void OnPostEdit(int id)
+        {
+            Message = "Edit handler fired";
+        }
+        public void OnPostView(int id)
+        {
+            Message = "View handler fired";
+        }
+
+    }
+}
+```
+
+The name of the method is appended to "OnPost" or "OnGet",depending on whether the handler should be called as a result of a POST or GET request.The next step is to associate a specific form action with a named handler.This is achieved by setting the asp-page-handler attribute value for a form tag helper:
+
+```html
+<div class="row">
+    <div class="col-lg-1">
+        <form asp-page-handler="edit" method="post">
+            <button class="btn btn-default">Edit</button>
+        </form>
+    </div>
+    <div class="col-lg-1">
+        <form asp-page-handler="delete" method="post">
+            <button class="btn btn-default">Delete</button>
+        </form>
+    </div>
+    <div class="col-lg-1">
+        <form asp-page-handler="view" method="post">
+            <button class="btn btn-default">View</button>
+        </form>
+    </div>
+</div>
+<h3 class="clearfix">@Model.Message</h3>
+```
+
+The code above renders as three buttons,each in their own form along with the default value for the Message property:
+
+![handlermethod](assets/90.png)
+
+The name of the handler is added to the form's action as a query string parameter:
+
+![actionname](assets/91.png)
+
+As you click each button,the code in the handler associated with the query string value is executed,changing the message each time.
+
+![deleteaction](assets/92.png)
+
+If you prefer not to have query stirng values representing the handler's name in the URL,you can use routing to add an optional route value for "handler" as part of the route template in the @page directive:
+
+`@page "{handler?}"`
+
+The name of the handler is then appended to the URL:
+
+![handlerurl](assets/93.png)
+
+##### Parameters in Handler Methods
+
+Handler methods can be designed to accept parameters:
+
+```csharp
+public void OnPostView(int id)
+{
+    Message = $"View handler fired for {id}";
+}
+```
+
+In a POST handler,the parameter name must match a form field name for the incoming value to be automatically bound to the parameter:
+
+```html
+<div class="col-lg-1">
+    <form asp-page-handler="view" method="post">
+        <button class="btn btn-default">View</button>
+        <input type="hidden" name="id" value="3" />
+    </form>
+</div>
+```
+
+![viewhandler](assets/94.png)
+
+Alternatively,you can use the form tag helper's asp-route attribute to pass parameter values as part of the URL,either as a query string value or as route data for GET requests:
+
+```html
+<form asp-page-handler="delete" asp-route-id="10" method="post">
+    <button class="btn btn-default">Delete</button>
+</form>
+```
+
+You append the name of the parameter to the asp-route attribute (in this case "id") and then provide a value.This will result in the parameter being passed as a query string value:
+
+![asp-route](assets/95.png)
+
+Or you can extend the route template for the page to account for an optional parameter:
+
+`@page "{handler?}/{id?}"`
+
+This results in the parameter value being added as a separate segment in the URL:
+
+![separatesegment](assets/96.png)
+
+##### Handing Multiple Actions For The Same Form
+
+Some forms need to be designed to cater for more than one possible action.Where this is the case,you can either write some conditional code to determine which action should be taken,or you can write separate named handler methods and then use the form action tag helper to specify the handler method to execute on submission of the form:
+
+```html
+<form method="post">
+    <button asp-page-handler="Register">Register Now</button>
+    <button asp-page-handler="RequestInfo">Request Info</button>
+</form>
+```
+
+The value passed to the page-handler attribute is the name of the handler method without the OnPost prefix or Async suffix:
+
+```csharp
+public async Task<IActionResult> OnPostRegisterAsync()
+{
+    //...
+    return RedirectToPage();
+}
+
+public async Task<IActionResult> OnPostRequestInfo()
+{
+    //...
+    return RedirectToPage();
+}
+
+```
+
+##### The NonHandler Attribute
+
+There may be occasions where you don't want a public method on a page to be considered as a handler method,despite its name matching the conventions for handler method discovery.You can use the NonHandler attribute to specify that the decorated method is not a page handler method:
+
+```csharp
+[NonHandler]
+public void OnGetFoo()
+{
+    //...
+}
+```
+
+##### Working With ViewData in Razor Pages
+
+ViewData is a container for data to be passed from the PageModel to the content page.ViewData is a dictionary of objects with a string-based key.You add items to ViewData as follows:
+
+```csharp
+public class IndexModel : PageModel
+{
+    public void OnGet()
+    {
+        ViewData["MyNumber"] = 42;
+        ViewData["MyString"] = "Hello World";
+        ViewData["MyComplexObject"] = new Book { 
+                                    Title = "Sum Of All Fears",  
+                                    Author = new Author { Name = "Tom Clancy" },
+                                    Price = 5.99m
+                                    };
+    }
+}
+```
+
+The ViewData dictionary is automatically made available to the content page.Therefore,in order to reference values stored in it,you just refer to their item by key:
+
+```html
+@page
+@model IndexModel
+@{
+
+}
+
+<h2>@ViewData["MyString"]</h2>
+<p>The answer to everything is @ViewData["MyNumber"]</p>
+```
+
+When working with non-string values,you need to cast them to their correct type in the content page:
+
+```html
+@page
+@model IndexModel
+@{
+    var book = (Book)ViewData["MyComplexObject"];
+}
+<h2>@book.Title</h2>
+<p>@book.Author.Name</p>
+<p>@book.Price</p>
+```
+
+You don't need to cast if you only want to render the value,and the ToString() method renders the value that you want.
+
+##### ViewData Attribute
+
+The ViewData attribute was introduced in ASP.NET Core 2.1.PageModel properties decorated with this attribute are automatically added as keys to the ViewData dictionary along with any value that has been assigned to them.In the following example,the Message property has been automatically added to ViewData:
+
+```csharp
+public class IndexModel:PageModel
+{
+    [ViewData]
+    public string Message{get;set;}
+    public void OnGet()
+    {
+        Message = "Hello world";
+    }
+}
+
+```
+
+Now the Message property can be accessed in the view via the Model property or the ViewData dictionary:
+
+```html
+@page
+@model IndexModel
+@{
+
+}
+
+<h2>@Model.Message</h2>
+<h2>@ViewData["Message"]</h2>
+```
+
+You should prefer to access properties of the Model in a content page because you benefit from strong typing: IntelliSense and compile-time checking.So why should you use the ViewData attribute on model properties?The real benefit of this feature comes when working with layout pages.ViewData is shared with the layout page (and any partial pages called by the content page or the layout),so the attribute makes it easy to pass typed data from the PageModel to the layout page or partials without having to explicitly assign it to the ViewData dictionary.
+
+Building on the previous example,the following snippet is a partial named __HelloWorldPartial:
+
+`<p>@ViewData["Message"] from the Hello World partial</p>`
+
+This is called from within the layout page using the partial tag helper:
+
+`<partial name="_HelloWorldPartial" />`
+
+The PageModel Message property was set in the OnGet handler and assigned to ViewData via the attribute,which ensures that it is passed from content page to layout to partial where it is rendered:
+
+![render](assets/97.png)
+
+##### ViewBag In Razor Pages
+
+ViewBag is a wrapper around the ViewData dictionary and provides an alternative way to access ViewData contents within ASP.NET Core MVC controllers using dynamic properties instead of string-based indexes.A design decision was made NOT to include a ViewBag property in the Razor Pages PageModel class,but you can use ViewBag to reference ViewData entries from within a Razor content page or layout page:
+
+```html
+@page
+@model IndexModel
+@{
+    ViewBag.Title = "My Home Page";
+}
+```
+
+You can access this within the layout page either via ViewBag or ViewData:
+
+`<title>@ViewBag.Title</title>`
+`<title>@ViewData["Title"]</title>`
+
+Either approach will render "My Home Page" within the title element.As to which approach you use,the ViewBag syntax is slightly more terse and does not require you to cast non-string values,but you should bear in mind the reason that ViewBag was not included in the PageModel class in the first place:
+
+> Damian Edwards from the ASP.NET Core team
+>
+> ViewBag uses dynamic which in our testing introductes a measurable performance impact on the processing of pages or views that use it.
+
+
 #### Tag Helpers
 #### View Components
 #### Routing and URLs
