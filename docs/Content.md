@@ -3142,6 +3142,102 @@ Either approach will render "My Home Page" within the title element.As to which 
 >
 > ViewBag uses dynamic which in our testing introductes a measurable performance impact on the processing of pages or views that use it.
 
+##### Action Results in Razor Pages
+
+Action results in Razor Pages are commonly used as the return type of handler methods and are responsible for generating response and appropriate status codes.Action results implement either the abstract Microsoft.AspNetCore.Mvc.ActionResult class,or the Microsoft.AspNetCore.Mvc.IActionResult interface.ASP.NET Core includes more that three dozen ActionResult classes covering a wide range of needs,including but not limited to executing and returning the content of a Razor page (PageResult),returning the content of a file (FileResult),redirecting to another resource (e.g.RedirectResult) or simply returning a specific HTTP status code (e.g. NotFoundResult,OkResult).It is also possible to author your own ActionResult classes if you need something bespoke.
+
+> **Note**
+>
+> Handler methods that return void or Task implicitly return a PageResult for the current page.If you don't intend to execute the current page as part of a handler method,you should explicitly return a suitable action result,for example OkResult;
+
+The following code illustrates the use of the RedirectToPageResult class in a simple OnGet handler method,which results in the user being redirected to the specified page:
+
+```csharp
+public IActionResult OnGet()
+{
+    return new RedirectToPageResult("Index");
+}
+```
+
+The OnGet handler method has a return type of IActionResult,which means that the return type can be any class that implements the IActionResult interface somewhere in its inheritance hierarchy.Ultimately,this means any action result in the entire framework.Generally,it is a good idea to be as specific as possible with handler method return types,so this example should be refactored as follows:
+
+```csharp
+public RedirectToPageResult OnGet()
+{
+    return new RedirectToPageResult("Index");
+}
+
+```
+
+If your handler method returns more than one type of action result depending on conditions,you will need to broaden the return type of method to ActionResult or IActionResult as this example demonstrates,which returns a PageResult if the ModelState is not valid,or a RedirectToPageResult (a different type) if ModelState is valid:
+
+```csharp
+public IActionResult OnPost()
+{
+    if(!ModelState.IsValid)
+    {
+        return new PageResult();
+    }
+
+    //otherwise do some processing
+
+    return new RedirectToPageResult("Index");
+}
+```
+
+Many action results have associated helper methods defined on the Razor Pages PageModel class that negate the need to "new up" instances of ActionResult classes and thereby help simplify code.The Page() method returns a PageResult,and the RedirectToPage method returns a RedirectToPageResult,so the previous example can be simplified using those methods:
+
+```csharp
+public IActionResult OnPost()
+{
+    if(!ModelState.IsValid)
+    {
+        return Page();
+    }
+    //otherwise do some processing
+    return RedirectToPage("Index");
+}
+```
+
+The following table lists ActionResult classes that are intended to be used in Razor Pages development,along with any HTTP status codes they return,and associated helper methods,if they exist.
+
+|ActionResult|Helper|HTTP Status Code|Description|
+|----|----|----|----|
+|BadRequestResult|BadRequest|400|Indicates that the server refuses or is unable to process the request because of a perceived client error.Used in request verification.|
+|ChallengeResult|Challenge|401|Used in authentication.You will return a ChallengeResult if the user has not authenticated successfully.It returns a 401 (Unauthorized) HTTP status code.|
+|ContentResult|Content|200|Takes a string and returns it with a text/plain content-type header by default.Overloads enable you to specify the content-type to return other formats such as text/html or application/json,for example.|
+|EmptyResult||200|This action Result type can be used to denote that a server-side operation completed successfully where there is no return value.|
+|FileContentResult|File|200|Returns a file from a byte array,stream or virtual path.|
+|FileStreamResult||200|Returns a file from a stream|
+|ForbidResult|Forbid|403|Used in authentication.The Forbid method returns a 403 (Forbidden) HTTP status code.|
+|LocalRedirectResult|LocalRedirect<br>LocalRedirectPermanent<br>LocalRedirectPreserveMethod<br>LocalRedirectPreserveMethodPermanent|302<br>301<br>307<br>308|Redirects the user to the location within the current site specified by the relative url^1^|
+|NotFoundResult|NotFound|404|Returns an HTTP 404 (Not Found) status code indicating that the requested resource could not be found.|
+|PageResult|Page|200|Will process and return the result of the current page.|
+|PartialResult|Partial^3^|200|Returns a Partial Page|
+|PhysicalFileResult|PhysicalFile|200|Returns a file from the specified physical path.|
+|RedirectResult|Redirect<br>RedirectPermanent<br>RedirectPreserveMethod<br>RedirectPermanentPreserveMethod|301<br>302<br>307<br>308|Redirects the user to the URL specified,with an HTTP status code dependent on the options specified.The default is a temporary redirect (302)^1^|
+|RedirectToPageResult|RedirectToPagePermanent<br>RedirectToPage<br>RedirectToPagePreserveMethod<br>RedirectToPagePreserveMethodPermanent|301<br>302<br>307<br>308|Redirects the user to the specified page.^1^,^2^|
+|SignInResult|||Part of Identity.Represents the result of a sign-in operation.|
+|SignOutResult|||Part of Identity.Represents the result of a sign-out operation.|
+|StatusCodeResult^4^|||Enables you to generate a response with your chosen HTTP Status code|
+|UnauthorizedResult||401||
+|ViewComponentResult||200|Returns the result of executing a ViewComponent|
+
+
+**Notes**
+
+1. The Redirect action results include options to specify that the redirect should be permanent and/or the HTTP method should be preserved across redirects.Temporary redirects are denoted by HTTP status codes 302 and 307.Permanent redirects are denoted by status codes 301 and 308.Permanent redirect instructions are usually honoured by search engines and other indexing technologies,which will replace the existing entry in their index with the new location specified in the location header that action result generates.
+
+If you do not opt to preserve the HTTP method that the original request used,the redirected request may (and often will) use GET regardless of the method used for the original request.If you want to ensure that the original HTTP method is preserved for the subsequent request (and potentially any form values),you should use one of the options that includes PreserveMethod in their name,or specify true for the appropriate parameter in the more generic RedirectResult method.
+
+2. The value passed in to the RedirectToPageResult methods is relative to the current page,unless it is prefixed with a forward slash (/) in which case it is relative to the Pages folder.
+
+3. The Partial helper method is available from ASP.NET Core 2.2 onwards.
+
+4. You might want to be able to return an HTTP status code that isn't covered by the built-in action results.For example,you might need to return a 204 No Content code from a page handler.This can be achieved with the following line:
+
+`return new StatusCode(204);`
+
 
 #### Tag Helpers
 #### View Components
