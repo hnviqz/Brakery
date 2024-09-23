@@ -3240,6 +3240,413 @@ If you do not opt to preserve the HTTP method that the original request used,the
 
 
 #### Tag Helpers
+
+##### Tag Helpers in Razor Pages
+
+Tag helpers are reusable components for automating the generation of HTML in Razor Pages.Tag helpers target specific HTML tags.The ASP.NET Core framework includes a number of predefined tag helpers targeting many commonly used HTML elements as well as some custom tags:
+
+- Anchor tag helper
+- Cache tag helper
+- Environment tag helper
+- Form Action tag helper
+- Form tag helper
+- Image tag helper
+- Input tag helper
+- Label tag helper
+- Link tag helper
+- Option tag helper
+- Partial tag helper
+- Script tag helper
+- Select tag helper
+- Textarea tag helper
+- Validation tag helper
+- Validation Summary tag helper
+
+The Tag helpers used in Razor Pages were introduced as part of ASP.NET MVC Core and are found in the Microsoft.AspNetCore.Mvc.TagHelpers package which is included as part of the Microsoft.AspNetCore.All meta-package.It is also possible to create your own custom tag helpers to automate the generation of HTML in a limitless range of scenarios.
+
+The following image illustrates an Anchor tag helper,which targets the HTML anchor <a> tag:
+
+![atag](assets/98.png)
+
+Each tag helper augments the target element with additional attributes,prefixed with asp-.In the image above,you can see that the asp-page attribute in the tag has a value applied,and additionalo attributes are shown by Intellisense (in IDEs that provide this feature).Some of the attributes are specific to Razor Pages and some are specific to MVC.Others are relevant to both development platforms.
+
+##### Enabling Tag Helpers
+
+Tag helpers are an opt-in feature.They are not available to the page by default.They are enabled by adding an @addTagHelper directive to the page,or more usually to a _ViewImports.cshtml file:
+
+`@addTagHelper *,Microsoft.AspNetCore.Mvc.TagHelpers`
+
+The @addTagHelper directive is followed by a wildcard character (*) to specify that all tag helpers found in the specified assembly should be used,and then the name of the assembly containing the tag helpers is provided.The name of the assembly is the name of your Razor Pages project in most cases,unless you are defining your tag helpers in a separate project.If you want to enable tag helpers defined in this site,which has a .csproj file named LearnRazorPages.csproj,you would do so like this:
+
+`@addTagHelper *,LearnRazorPages`
+
+> :information_source:Note:The value provided to the @addTagHelper directive is not enclosed in quotes.This requirement was removed when ASP.NET Core was at Release Candidate 2.However,if you prefer,you can still surround values in quotes:
+>
+> `@addTagHelper "*,Microsoft.AspNetCore.Mvc.TagHelpers"`
+
+##### Selective tag processing
+
+Once a tag helper has been enabled,it will process every instance of the tag that it targets.That may not be desirable,especially so where tags don't feature special attributes that need to be processed.It is possible to opt in or out of tag processing selectively.You can use the @addTagHelper and @removeTagHelper directives to opt in or opt out of processing all tags of a certain type.Rather than pass the wildcard character to the @addTagHelper directive,you can pass the name(s) of the tag helpers that you want to enable:
+
+`@addTagHelper "Microsoft.AspNetCore.Mvc.TagHelpers.AnchorTagHelper,Microsoft.AspNetCore.Mvc.TagHelpers"`
+
+The only tag helper that is enabled in the previous snippet is the AnchorTagHelper.This approach is suitable if you only want to enable a small selection of tag helpers.If you want to enable most of the tag helpers in a library,you can use the @removeTagHelper directive to filter out tag helpers having enabled all of them.Here's how you would disable the AnchorTagHelper using this method:
+
+`@addTagHelper "*,Microsoft.AspNetCore.Mvc.TagHelpers"`
+`@removeTagHelper "Microsoft.AspNetCore.Mvc.TagHelpers.AnchorTagHelper,Microsoft.AspNetCore.Mvc.TagHelpers"`
+
+You can opt individual tags out of processing by placing the ! prefix just prior to the tag name.The following example illustrates how that is applied to an anchor tg to prevent it being processed unnecessarily:
+
+`<!a href="https://www.learnrazorpages.com"></!a>`
+
+The prefix is placed in both the start and end tag.Any tag without the ! prefix will be processed by an associated tag helper.The alternative option is to opt specific tags in to processing at parse time.You achieve this by registering a custom prefix via the @tagHelperPrefix directive and then applying your chosen prefix to tags you want to take part in processing.You can register your prefix in the _ViewImports.cshtml file,where you enabled tag helper processing:
+
+`@tagHelperPrefix x`
+
+You can use pretty much any string you like as a prefix.Then you apply it to both the start and end tag,just like the ! prefix:
+
+`<xa asp-page="/Index">Home</xa>`
+
+Only those tags that feature the prefix will be processed.The image below illustrates how Visual Studio shows enabled tag helpers with a different font:
+
+![prefix](assets/99.png)
+
+For the sake of clarity,most developers are likely to use punctuation to separate the prefix from the tag name,for example:
+
+`@tagHelperPrefix x:`
+`<x:a asp-page="/Index">Home</x:a>`
+
+This should reduce any visual confusion especially for designers when they look at the HTML content.
+
+##### The Anchor tag helper
+
+The anchor tag helper targets the HTML anchor (<a>) tag which is used to generate relative links from the values passed to various custom attributes.It can also used to generate absolute URLs to external resources.
+
+> :warning:The anchor tag helper's role is to generate an href attribute from the parameter values passed to its custom attributes.Therefore,if you try to add an href attribute to the anchor tag helper as well as values to the custom attributes,an exception will be raised:
+>
+>> InvalidOperationException:cannot override the 'href' attribute for <a>.An <a> with a specified 'href' must not have attributes starting with 'asp-route-' or an 'asp-action','asp-controller','asp-area','asp-route','asp-protocol','asp-host','asp-fragment','asp-page' or 'asp-page-handler' attribute.
+>
+> If a route cannot be matched from the values passed to the taghelper attributes,the output for the href attribute will silently fall back to an empty string.
+
+|Attribute|Description|
+|----|-----|
+|action|The name of the action method on an MVC controller|
+|all-route-data^1^|Multiple route parameter values|
+|area|The name of the Area|
+|controller|The name of the MVC controller|
+|fragment^2^|The fragment in the URL|
+|host|The domain|
+|page^3^|The Razor page to link to|
+|page-handler^4^|The Razor page handler method to invoke|
+|protocol|The protocol (http,https,ftp etc)|
+|route^5^|the name of the route|
+|route-^6^|A single route parameter value|
+
+
+##### Notes
+
+1. If the target URL includes multiple route parameters,their values can be packaged as a Dictionary<string,string> and passed to the all-route-data parameter:
+
+```csharp
+@{
+    var d = new Dictionary<string,string>
+            {
+                {"key1","value1"},
+                {"key2","value2"}
+            };
+}
+
+<a asp-all-route-data="d">Click</a>
+```
+
+If the route has parameters defined,the anchor tag helper will output the values as URL segments:' <a href="/Page/value1/value2">Click</a>'. If it doesn't,the route parameters will be appended to the URL as query string values:`<a href="/Page?key1=value&amp;key2=value2">Click</a>`.
+
+2. The fragment is the value after a hash or pround sign (#) in a URL used to identify a named portion of a document.The "Notes" heading above has an identity value of "notes" and can be referenced in a URL using the anchor tag helper like this:
+
+`<a asp-fragment="notes">Click</a>`
+
+producing this HTML: `<a href="/Page#notes">Click</a>`
+
+3. The path to the target Razor page must be provided without the file extension.The leading / specifies an absolute path.If you omit it,the framework looks for a page relative to the current one:
+
+`<a asp-page="/page">Click</a>`
+
+If no valid page name is specified,the tag helper will render the href attribute with an empty string.If you want to generate a link to the default page in a folder,you must still include the default page's file name:
+
+`<a asp-page="/folder/index">Folder</a>`
+
+This renders as `<a href="/folder">Folder</a>`
+
+The tag helper will generate an href attribute whose value will be taken from the route template of the specified page.
+
+4. The page handler method name will appear as a query string value unless it has been included as a route parameter for the target page.
+
+5. Razor pages doesn't support named routes.This parameter will only be used for MVC routes.
+
+6. The route- attribute enables you to specify the value for a single route data parameter.The parameter name is added after the hyphen.Here,the route parameter name is "key1":
+
+`<a asp-route-key1="value">Click</a>`
+
+This renders as 
+
+`<a href="/Page/Value1>">Click</a>`
+
+if the key1 parameter is defined as part of the page's route template,or `<a href="/Page/key1=value1">Click</a>` if not.
+
+Route values specified using the singular route- attribute and multiple all-route-data attribute are additive.
+
+```
+### Ambient Route Values 
+Route Data values for the current request are considered _ambient_ values in ASP.NET Core 2.1 and earlier*. This means that they do not necessarily need to be specified when generating links from the current page to another that requires the same Route Data value. For example, you may provide a page that shows the details of an order that has an `id` as a route data parameter: `"{id:int}"`. 
+```
+
+Within the Details age,you want to provide a link to an Edit page,which also accepts a route data parameter named id.There is no need to specify the asp-route-id attribute to the anchor tag helper because the ambient value from the current request context will be used by default.Therefore the following is sufficient to generate a link to /edit/3:
+
+```
+`<a asp-page="edit">Edit</a>`
+In this case, you only need to specify a value for `asp-route-*` if you want to override the ambient value. 
+If you override an ambient value by explicitly providing a value, all subsequent ambient values will be ignored. The template `"{pageno=1}/{sortby=Id}"` specifies two parameters, each with a default value. If you override the `pageno` value e.g. `<a asp-page="list" asp-route-pageno="2">2</a>`, the `sortby` value is omitted from the generated URL (along with any subsequent parameters) so that the generated URL is `list/2`. However, if you override the `sortby` value, the `pageno` value is retained (along with any other previous parameters).
+***Note:** This behaviour changed in ASP.NET Core 2.2. Ambient route values are no longer reused when the destination page is different to the source page.
+```
+
+##### Routing Options
+
+The anchor tag helper will generate URLs with the page name capitalised when you pass a value to the page attribute e.g.
+
+`<a asp-page="page">Click</a>`
+
+becomes:
+
+`<a href="/Page">Click</a>`
+
+You can configure RouteOptions if you  prefer the generated URL to be all lower case:
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddRazorPages();
+    services.Configure<RouteOptions>(options=>{
+        options.LowercaseUrls = true;
+    });
+}
+```
+
+Another option, AppendTrailingSlash will result in a trailing slash being appended to the page name in every case:
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddRazorPages();
+    services.Configure<RouteOptions>(options=>{
+        options.AppendTrailingSlash = true;
+    });
+}
+```
+
+With both options enabled,the resulting HTML looks like this:
+
+`<a href="/page/">Click</a>`
+
+##### The Cache Tag Helper
+
+The cache tag helper enables you to cache regions of a Razor page in memory on the server.Typical uses for this helper are for View Components or partial views that require relatively expensive database or web service calls,but where the content doesn't change very often.This type of caching its primarily used to improve a website's performance.
+
+Unlike most other tag helpers,the Cache tag helper doesn't target a standard HTML element.It targets the <cache> tag,which is not rendered to the browser and doesn't appear in the HTML source either.
+
+> :warning:The cache tag helper uses an im-memory-based store for content.This is volatite and can be cleared unexpectedly for any number of reasons,including app pool recycling,server restarts,low memory pressure and so on.The cache tag helper is not intended to be used for reliable long term storage.
+
+|Attribute|Description|
+|----|----|
+|enabled^1^|Used to specify if this tag is enabled or not|
+|expires-after^2^|Specifies the period of time after which the cached item should expire|
+|expires-on^3^|Specifies the time at which the cached entry should expire|
+|expires-sliding^4^|The period of time after the last access that the item should expire|
+|priority^5^|Specifies the CacheItemPriority value of the cached item|
+|vary-by^6^|Used to specify the parameters that determine whether different versions of the same content should be cached|
+
+##### Notes
+
+1. The cache tag helper is enabled by default.You might want to conditionally disable it under certain circumstances.The enabled attribute facilitates this.The cached item in this example is disabled on Sundays:
+
+`<cache enabled="DateTime.Now.DayOfWeek != DayOfWeek.Sunday">@DateTime.Now</cache>`
+
+2. If you don't provide values for any of the expires-* attributes,your item will be cached without an expiration date,meaning that it will only expire when the memory store is cleared.The expires-after attribute takes a TimeSpan value that represents the period of time that the item should be stored in the cache.This example shows the item being stored for 1 hour:
+
+`<cache expires-after="TimeSpan.FromHours(1)">@DateTime.Now</cache>`
+
+3. The expires-on attribute takes a DateTimeOffset value that specifies the absolute expiry time of an item. This item is set to expire at 8:15 am on June 14th 2017 UTC:
+
+`<cache expires-on="new DateTimeOffset(new DateTime(2017, 6, 14, 8, 15, 0))">@DateTime.Now</cache>`
+
+4. An item can be set to expire after a specified period of inactivity. This is known as "sliding expiration". The expires-sliding attribute takes a TimeSpan value. In this example, the item is set to expire 20 minutes after the last time the page was requested:
+
+`<cache expires-sliding="TimeSpan.FromMinutes(20)">@DateTime.Now</cache>`
+
+As each request is made for the cached item,the expiration time is reset to 20 minutes after the request.
+
+5. Items in the cache can have a priority applied to them, determining how they are dealt with when memory pressure results in items being cleared from the cache before their pre-ordained expiry time. The priority attribute takes a CacheItemPriority enum value that specifies the relative priority of items in the cache. The available values are
+
+    - High
+    - Low
+    - Normal
+    - NeverRemove
+
+Items with High priority will be the last to be removed.Items set as NeverRemove will remain in the cache.You should exercise caution when applying NeverRemove as there is a danger of overflowing the cache with more data that it can handle.This is how to set an item with High priority:
+
+`<cache priority="CacheItemPriority.High">@DateTime.Now</cache>`
+
+6. You can cache multiple versions of the same content based on different criteria. The vary-by attribute provides a mechanism for you to specify the criteria to be used to determine whether to store another version of existing cached content.
+
+The attribute has a number of preset options:
+    
+    - vary-by-cookie
+    - vary-by-header
+    - vary-by-query
+    - vary-by-route
+    - vary-by-user
+  
+##### Cookie
+
+The values of cookies can be taken into consideration when caching different versions of content.The vary-by-cookie option takes a comma-separated string representing the names of the cookies:
+
+`<cache vary-by-cookie="AppCookie1, AppCookie2">@DateTime.Now</cache>`
+
+##### Header
+
+You can store multiple versions of content based on differing request header values.Multiple headers can be applied as a comma-separated string.This example stores different versions of the cached content based on the user's preferred language:
+
+`<cache vary-by-header="Accept-Language">@DateTime.Now</cache>`
+
+##### Query
+
+The vary-by-query option enables the use of query string parameters as the criteria for caching different versions.Query string parameter names are supplied in a comma-separated list:
+
+`<cache vary-by-query="id">@DateTime.Now</cache>`
+
+##### Route
+
+You can have route data parameters taken into account by using the vary-by-route option.This attribute also accepts a comma-separated string of route parameter names as a value:
+
+`<cache vary-by-route="key1, key2">@DateTime.Now</cache>`
+
+##### User
+
+The final built-in option enables you to specify that each user gets their own version of cached content.The vary-by-user attribute requires a bool,which should be set to true:
+
+`<cache vary-by-user="true">@DateTime.Now</cache>`
+
+##### String
+
+Finally,you can provide an arbitrary string value as a parameter if you want to use a value that isn't exposed by one of the preset options:
+
+`<cache vary-by="@Model.Id">@DateTime.Now</cache>`
+
+You can use any combination of the vary-by attributes that you need.
+
+##### The Environment Tag Helper
+
+The environment tag helper supports rendering different content dependent on the current value of the ASPNETCORE_ENVIRONMENT environment variable for the application.
+
+
+|Attribute|Description|
+|-----|----|
+|names|The name(s) of the environment(s) for which the content should be rendered|
+|include|The name(s) of the environment(s) for which the content should be rendered|
+|exclude|The name(s) of the environment(s) for which the content should not be rendered|
+
+##### Notes
+
+The most common use case for the environment tag helper is to include the full version of CSS or JavaScript files when the application is in a development stage,and the bundled and minified versions when the application is in other environments.
+
+```xml
+<environment names="development">
+    <link rel="stylesheet" href="~/css/style1.css" />
+    <link rel="stylesheet" href="~/css/style2.css" />
+</environment>
+<environment names="Staging,Test,Production">
+    <link rel="stylesheet" href="~/css/style.min.css" />
+</environment>
+```
+
+If an environment name is part of an exclude list,the content will not be rendered under any circumstances for that environment.Inclusion in the exclude list overrides inclusion in the include list or the names list.
+
+
+##### The Formaction Tag Helper
+
+The formaction tag helper adds a "formaction" attribute to the target element with a value generated from the parameters passed to the various custom attributes.
+
+The formaction tag helper targets two elements:
+
+- Button
+- Input with a type attribute set to image or submit
+
+The formaction tag helper is an example where the name of the tag helper doesn't follow the convention that matches tag helper class names with the name of the target element.
+
+> :information_source:The formaction attribute specifies where a form is to be posted.It overrides the form's action attribute.It is new to HTML 5 and is not supported in IE 9 or earlier.
+
+|Attribute|Description|
+|----|-----|
+|action|The name of the action method on an MVC controller|
+|all-route-data^1^|Multiple route parameter values|
+|area|The name of the MVC area|
+|controller|The name of the MVC controller|
+|fragment^2^|The fragment in the URL|
+|host|The domain|
+|page^3^|The Razor page to link to|
+|page-handler^4^|The Razor page handler method to invoke|
+|protocol|The protocol (http,https,ftp etc)|
+|route^5^|The name of the route|
+|route-^6^|A single route parameter value|
+
+##### Notes
+
+1. If the target URL includes multiple route parameters,their values can be packaged as a Dictionary<string,string> and passed to the all-route-data parameter:
+
+```csharp
+@{
+    var d = new Dictionary<string,string>
+            {
+                {"key1","value1"},
+                {"key2","value2"}
+            };
+}
+
+<button asp-all-route-data="d">Submit</button>
+```
+
+If the route has parameters defined,the formaction tag helper will output the values as URL segments:`<button formaction="/Page/value1/value2">Submit</button>`.If it doesn't,the route parameters will be appended to the URL as query string values: `<button formaction="/Page?key1=value1&amp;key2=value2">Submit</button>`.
+
+2. The fragment is the value after a hash or pound sign (#) in a URL used to identify a named portion  of a document.The "Notes" heading above has an identity value of "notes" and can be referenced in a URL using the formaction tag helper like this:
+
+`<button asp-fragment="notes">Submit</button>`
+
+producing this HTML: `<button formaction="/Page#notes">Submit</button>`.It should be noted that fragments have no influence on the submission of a form.
+
+3. The name of the Razor page to link to must be provided without the file extension:
+
+`<button asp-page="page">Submit</button>`
+
+If no page name is specified,the tag helper will generate a link to the current page.
+
+4. The page handler method name will appear as a query string value unless it has been included as a route parameter for the target page.
+
+5. Razor pages doesn't support named routes.This parameter will only be used for MVC routes.
+
+6. The route- parameter enables you to specify the value for a single route value.The route parameter name is added after the hyphen.Here,the route parameter name is "key1":
+
+`<button asp-route-key1="value1">Submit</button>`
+
+This renders as 
+
+`<button formaction="/Page/value1">Submit</button>`
+
+if the key parameter is defined as part of the page's route template,or `<button formaction="/Page?key1=value1">Submit</button>` if not.
+
+
+
+
+
+
 #### View Components
 #### Routing and URLs
 
