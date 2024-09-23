@@ -3642,8 +3642,196 @@ This renders as
 
 if the key parameter is defined as part of the page's route template,or `<button formaction="/Page?key1=value1">Submit</button>` if not.
 
+##### The Form Tag Helper
+
+The form tag helper generates a URL based on the application's routing configuration and applies it to the form's action attribute.It also generates a hidden field within the form containing the value of an anti-forgery token for request verification.If a method attribute is not specified in the form element,the form tag helper will render one with a value of post by default.
+
+> :warning:form tag helper's primary role is to generate a URL for the form's action attribute from the parameters passed to its custom attributes.Therefore,if you try to provide an action attribute to the form tag helper in addition to the custom attributes,an exception will be raised.
+
+|Attribute|Description|
+|----|----|
+|action|The name of the action method on an MVC controller|
+|all-route-data^1^|Multiple route parameter values|
+|antiforgery^7^|Specifies whether an anti-forgery token is rendered.|
+|area|The name of the MVC area|
+|controller|The name of the MVC controller|
+|fragment^2^|The fragment in the URL|
+|host|The domain|
+|page^3^|The Razor page to link to|
+|page-handler^4^|The Razor page handler method to invoke|
+|protocol|The protocol (http,https,ftp etc)|
+|route^5^|The name of the route|
+|route-^6^|A single route parameter value|
 
 
+##### Notes
+
+1. If the target URL for the action includes multiple route parameters,their values can be packaged as a Dictionary<string,string> and passed to the all-route-data parameter:
+
+```csharp
+@{
+    var d = new Dictionary<string,string>
+            {
+                {"key1","value1"},
+                {"key2","value2"}
+            };
+}
+
+<form asp-all-route-data="d">...</form>
+```
+
+If the route has parameters defined,the form tag helper will output the values as URL segments: `<form action="/Page/value1/value2">...</form>`.If it doesn't,the route parameters will be appended to the URL as query string values:`<form action="/Page?key1=value1&amp;key2=value2" method="post">...</form>`
+
+2. The fragment is the value after a hash or pround sign (#) in a URL used to identity a named portion of a document.The "Notes" heading above has an identity value of "notes" and can be referenced in a URL using the anchor tag helper like this:
+
+`<form asp-fragment="notes">...</form>`
+
+producing this HTML: `<form action="/Page#notes" method="post">...</form>`.It should be noted that fragments have no influence on the submission of a form.
+
+3. The name of the Razor page to link to must be provided without the file extension:
+
+`<form asp-page="page">...</form>`
+
+If no page name is specified,the tag helper will generate a link to the current page.
+
+4. The page handler method name will appear as a query string value unless it has been included as a route parameter for the target page.
+
+5. Razor pages doesn't support named routes.This parameter will only be used for MVC routes.
+
+6. The route- parameter enables you to specify the value for a single route value.The route parameter name is added after the hyphen.Here,the route parameter name is "key1":
+
+`<form asp-route-key1="value1">...</form>`
+
+This renders as 
+
+`<form action="/Page/value1" method="post">...</form>`
+
+if the key1 parameter is defined as part of the page's route template,or `<form action="/Page?key1=value1" method="post">...</form>` if not.
+
+7. The anti-forgery token is rendered as a hidden input named __RequestVerificationToken.It will be rendered by default,unless the form has an action attribute specified,the form's method is set to GET or the antiforgerytoken value is set to false.If you disable the generation of the anti-forgery token,you must also disable request verification on the PageModel class that houses the processing page handler.
+
+##### The Image Tag Helper
+
+The image tag helper targets the <img> element and enables versioning of image files.
+
+|Attribute|Description|
+|----|-----|
+|append-version|A boolean value indicating whether to append the image URL with a file version|
+
+##### Notes
+
+The query string named v is added to the image's URL if the append-version attribute is set to true.The value is calculated from the file contents,so if the file is amended,the value will differ.Browsers take query string values into account when determining whether a request can be satisfied from its cache.Therefore,if the query string value changes,the browser will retrieve the new version of the file from the server.
+
+This usage example utilises one of the images provided with the Razor Pages (and MVC) template:
+
+`<img asp-append-version="true" src="~/images/banner1.svg" />`
+
+The rendered HTML is as follows:
+
+`<img src="/images/banner1.svg?v=GaE_EmkeBf-yBbrJ26lpkGd4jkOSh1eVKJaNOw9I4uk" />`
+
+The thing about this image is that it is an .svg file,which makes it easy to edit using any text editor.The following shows the new version tag after changing just the first path's fill color value from #56B4D9 to #66B4D9
+
+`<img src="/images/banner1.svg?v=qp53a_aCPkTojNdLo1S2IvprtETqDiat_cWYbj1z8Z0" />`
+
+##### The Input Tag Helper
+
+The Input tag helper generates appropriate name and id attribute values based on the PageModel property that is assigned to it.It will also generate an appropriate value for the type attribute,based on the property's meta data.The tag helper will also emit attributes that provide support for unobtrusive client-side validation.
+
+The input tag helper has two attributes:
+
+|Attribute|Description|
+|---|---|
+|for|An expression to be evaluated against the current PageModel,usually a PageModel property name|
+|format|A format string used set the format of the value attribute|
+
+##### Notes
+
+Although it only has two attributes,the input tag helper is quite powerful.It examines the meta data of the type that is passed to the for attribute,including any Data Annotations that have been applied to the property and emits HTML accordingly.
+
+Here is a class with various property types and data annotation attributes applied to it:
+
+```csharp
+public class Member
+{
+    public int PersonId{get;set;}
+    public string Name {get;set;}
+    [EmailAddress]
+    public string Email {get;set;}
+    [DataType(DataType.Password)]
+    public string Password{get;set;}
+    [DataType(DataType.PhoneNumber)]
+    public string Telephone{get;set;}
+    [Display(Name="Date of Birth")]
+    public DateTime DateOfBirth{get;set;}
+    public decimal Salary{get;set;}
+    [Url]
+    public string Website{get;set;}
+    [Display(Name="Send spam to me")]
+    public bool SendSpam{get;set;}
+    public int? NumberOfCats{get;set;}
+    public IFormFile Selfie{get;set;}
+}
+
+```
+
+This is then applied as a property to a PageModel for a page called Register.cshtml:
+
+```csharp
+public class RegisterModel : PageModel
+{
+    [BindProperty]
+    public Member Member {get;set;}
+    public void OnGet()
+    {
+
+    }
+}
+```
+
+The properties of the model are applied to various input tag helpers in the Razor file:
+
+```html
+<form method="post">
+    <input asp-for="Member.PersonId" /><br />
+    <input asp-for="Member.Name" /><br />
+    <input asp-for="Member.Email" /><br />
+    <input asp-for="Member.Password" /><br />
+    <input asp-for="Member.Telephone" /><br />
+    <input asp-for="Member.Website" /><br />
+    <input asp-for="Member.DateOfBirth" /><br />
+    <input asp-for="Member.Salary" /><br />
+    <input asp-for="Member.SendSpam" /><br />
+    <input asp-for="Member.NumberOfCats" /><br />
+    <input asp-for="Member.Selfies" /><br />
+    <button>Submit</button>
+</form>
+```
+
+And this generates the following HTML:
+
+```html
+<form method="post">
+    <input type="number" data-val="true" data-val-required="The PersonId field is required." id="Member_PersonId" name="Member.PersonId" value="" /><br />
+    <input type="text" id="Member_Name" name="Member.Name" value="" /><br />
+    <input type="email" data-val="true" data-val-email="The Email field is not a valid e-mail address." id="Member_Email" name="Member.Email" value="" /><br />
+    <input type="password" id="Member_Password" name="Member.Password" /><br />
+    <input type="tel" id="Member_Telephone" name="Member.Telephone" value="" /><br />
+    <input type="url" data-val="true" data-val-url="The Website field is not a valid fully-qualified http, https, or ftp URL." id="Member_Website" name="Member.Website" value="" /><br />
+    <input type="datetime-local" data-val="true" data-val-required="The Date of Birth field is required." id="Member_DateOfBirth" name="Member.DateOfBirth" value="" /><br />
+    <input type="text" data-val="true" data-val-number="The field Salary must be a number." data-val-required="The Salary field is required." id="Member_Salary" name="Member.Salary" value="" /><br />
+    <input data-val="true" data-val-required="The Send spam to me field is required." id="Member_SendSpam" name="Member.SendSpam" type="checkbox" value="true" /><br />
+    <input type="number" id="Member_NumberOfCats" name="Member.NumberOfCats" value="" /><br />
+    <input type="file" id="Member_Selfie" name="Member.Selfie" /><br />
+    <button>Submit</button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8I..." />
+    <input name="Member.SendSpam" type="hidden" value="false" />
+</form>
+```
+
+#### Type attribute based on data type
+
+The data type of the property is taken into account when the input tag helper determines the type attribute's value to apply.HTML 5 types are used wherever possible to take advantage of features provided by supporting browsers.They behave as type="text" in browsers that don't support the rendered HTML 5 type:
 
 
 
