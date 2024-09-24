@@ -1,5 +1,8 @@
 ### Learn Razor Pages——Your guide to using ASP.NET Core Razor Pages
 
+![cover](assets/105.png)
+
+
 #### Home
 ##### A First Look
 ###### Welcome To Learn Razor Pages
@@ -3833,9 +3836,985 @@ And this generates the following HTML:
 
 The data type of the property is taken into account when the input tag helper determines the type attribute's value to apply.HTML 5 types are used wherever possible to take advantage of features provided by supporting browsers.They behave as type="text" in browsers that don't support the rendered HTML 5 type:
 
+|.NET Type|Input type|
+|---|---|
+|bool|checkbox|
+|byte,short,int,long|number|
+|decimal,double,float|text^1^|
+|string|text|
+|DateTime|datetime-local|
+|IFormFile|file^2^|
 
+1. Despite the fact that the input type is set to text for these data types,they will still be validated for numeric values.
+2. The IFormFile type is located in the Microsoft.AspNetCore.Http namespace.It is the .NET Core successor to the HttpPostedFile type.
+
+##### Type attribute based on data annotations
+
+Data annotation attributes applied to properties are also a determining factor for the selection of the input tag helper's type attribute.Most types are specified by a Datatype enumeration value provided to the DataType attribute.Some types have their own attribute.The following table provides the DataType enumeration values,with equivalent attributes where they exist:
+
+|DataType Enumeration|Attribute|Input type|
+|----|----|----|
+|EmailAddress|EmailAddress|email|
+|PhoneNumber|Phone|tel|
+|Password||password|
+|Url|Url|url|
+|Date||date|
+|Time||time|
+|DateTime,Duration||datetime-local|
+|HiddenInput^1^||hidden|
+
+All other DataType enumeration values (CreditCard,Currency,Html,ImageUrl,MultilineText,PostCode and Upload) result in type="text" being applied.
+
+1. The HiddenInput attribute requires a reference to Microsoft.AspNetCore.Mvc.All other attributes reside in the System.ComponentModel.DataAnnotations namespace.
+
+##### Validation support
+
+The input tag helper also emits data attributes that work with ASP.NET's Unobtrusive Client Validation framework (an extension to jQuery Validation).The validation rules are specified in data-val-* attributes and are calcuated from the data types and any data annotation attributes that have been applied to model properties.
+
+The following attributes are designed for validation purposes and will result in appropriate data-val error messages and other attributes being generated:
+
+- Compare
+- MaxLength
+- Range
+- Required^1^
+- StringLength
+- Non-nullable properties are treated as Required.
+
+In addition,the following annotation attributes generate data-val attributes:
+
+- EmailAddress/DataType.EmailAddress
+- Phone/DataType.PhoneNumber
+- Url/DataType.Url
+
+For further information on the validation attributes.See Validation.
+
+##### The Label Tag Helper
+
+The label tag helper generates appropriate for attribute values and content based on the PageModel property that is assigned to it.It has just one attribute:
+
+|Attribute|Description|
+|---|---|
+|for|An expression to be evaluated against the current page model|
+
+##### Notes 
+
+The label tag helper is intended to work alongside the Input tag helper.It takes a property of the PageModel as a parameter to the asp-for attribute and renders the name of the property as a value for the label's for attribute and as the content of the label tag.Assuming that the PageModel has a property named "Email":
+
+`<label asp-for="Email"></label>`
+
+This renders as 
+
+`<label for="Email">Email</label>`
+
+Note that the closing tag is required.If you use a self-closing tag e.g. `<label asp-for="Email"></label>`,the content will not be rendered.
+
+You can override the value that is rendered in the label in two ways.The first option is to provide an alternative value:
+
+`<label asp-for="Email">Email Address</label>`
+
+Alternatively,you can use the Data Annotations Display attribute to change the content that is rendered:
+
+```csharp
+[Display(Name="Email Address")]
+public string EmailAddress{get;set;}
+```
+
+Both of these approaches will render as 
+
+`<label for="EmailAddress">Email Address</label>`
+
+##### The Link Tag Helper
+
+The role of the link tag helper is to generate links dynamically to CSS files and fallbacks in the event that the primary file is not available,such as if the primary file is located on remote Content Delivery Network(CDN) which is unavailable for any reason.
+
+|Attribute|Description|
+|----|----|
+|href-include|A comma separated list of globbed file patterns of CSS stylesheets to load.The glob patterns are assessed relative to the application's 'webroot' setting.|
+|href-exclude|A comma separated list of globbed file patterns of CSS stylesheets to execlude from loading.The glob patterns are assessed relative to the application's 'webroot' setting.Must be used in conjunction with href-include|
+|fallback-href|The URL of a CSS stylesheet to fallback to in the case the primary on fails.|
+|fallback-href-include|A comma separated list of globbed file patterns of CSS stylesheets to fallback to in the case the primary one fails.The glob patterns are assessed relative to the application's 'webroot' setting.|
+|fallback-test-class|The class name defined in the stylesheet to use for the fallback test.Must be used in conjunction with fallback-test-property and fallback-test-value,and either fallback-href or fallback-href-include.|
+|fallback-test-value|The CSS property value to use for the fallback test.Must be used in conjunction with fallback-test-class and fallback-test-property,and either fallback-href or fallback-href-include.|
+|append-version|Boolean value indicating if file version should be appended to the href urls.|
+
+##### Notes
+
+You are only likely to use this helper if you use a CDN version of a CSS file and your site will be unusable in the event that it is not available.The helper checks to see if CDN version of the style sheet is available by testing that the value for the specified class property is correct.If not,the helper injects a new link to the specified style sheet.
+
+The default Razor Pages template illustrates its usage:
+
+```html
+<link rel="stylesheet" href="https://ajax.aspnetcdn.com/ajax/bootstrap/3.3.7/css/bootstrap.min.css"
+        asp-fallback-href="~/lib/bootstrap/dist/css/bootstrap.min.css"
+        asp-fallback-test-class="sr-only" asp-fallback-test-property="position" asp-fallback-test-value="absolute" />
+<link rel="stylesheet" href="~/css/site.min.css" asp-append-version="true" />
+```
+
+The preferred version of Bootstrap is hosted on the Microsoft CDN,and the fallback is stored locally.The style sheet contains a class named sr-only which has the following definition:
+
+```css
+.sr-only{
+    position:absolute;
+    width:1px;height:1px;
+    padding:0;margin:1px;
+    overflow:hidden;
+    clip:rect(0,0,0,0);
+    border:0
+}
+```
+
+The position property is the subject of the test,which determines (in this particular case) whether the computed value of the property is absolute.If the test fails,the local version of the style sheet is loaded.The tag helper is responsible for generating a meta tag and the JavaScript  for the test:
+
+```html
+<meta name="x-stylesheet-fallback-test" content="" class="sr-only" />
+<script>
+!function(a,b,c,d){
+    var e,
+    f=document,
+    g=f.getElementsByTagName("SCRIPT"),
+    h=g[g.length-1].previousElementSibling,
+    i=f.defaultView&&f.defaultView.getComputedStyle?f.defaultView.getComputedStyle(h):h.currentStyle;
+    if(i&&i[a]!==b)
+        for(e=0;e<c.length;e++)
+            f.write('<link href="'+c[e]+'" '+d+"/>")}("position","absolute",["\/lib\/bootstrap\/dist\/css\/bootstrap.min.css"], "rel=\u0022stylesheet\u0022 ");
+</script>
+```
+
+##### Option Tag Helper
+
+The option tag helper is designed to work with the select tag helper.It has no custom attributes.It has two main uses:
+
+1. It enables you to manually add items to a list of options to be rendered such as a default option.
+
+2. If any of the option values that you provide manually match the value of the select tag helper's for attribute,they will be set as selected.
+
+The first example shows a default option manually added to the select tag helper.First,here is a simple PageModel with a property called Items which is a collection of SelectListItem to be bound to a select tag helper.The options are just the numbers 1 to 3.The PageModel also has a property named Number which represents the selected item:
+
+```csharp
+public class TagHelpersModel:PageModel
+{
+    public List<SelectListItem> Items => Enumerable.Range(1,3).Select(x=>new SelectListItem{
+        Value = x.ToString(),
+        Text = x.ToString()
+    }).ToList();
+
+    public int Number {get;set;}
+    public void OnGet()
+    {
+
+    }
+}
+```
+
+Next is the select tag helper with a single option tag helper that has no value applied to it,and instructional text:
+
+```html
+<select asp-for="Number" asp-items="Model.Items">
+    <option value="">Pick one</option>
+</select>
+```
+
+This results in the following rendered HTML:
+
+```html
+<select data-val="true" data-val-required="The Number field is required." id="Number" name="Number">
+    <option value="">Pick one</option>
+    <option value="1">1</option>
+    <option value="2">2</option>
+    <option value="3">3</option>
+</select>
+```
+
+The second example shows a number of options manually added to the select tag helper,one of which matches the value of the for attribute property.This is similar to the PageModel in the previous example,except that in this instance,the options are not present and the Number property has a default value of 2 applied to it:
+
+```csharp
+public class TaghelpersModel:PageMode
+{
+    public int Number {get;set;}=2;
+    public void OnGet()
+    {
+
+    }
+}
+```
+
+Here all of the options for the select tag helper have been added manually:
+
+```html
+<select asp-for="Number">
+    <option value="">Pick one</option>
+    <option>1</option>
+    <option>2</option>
+    <option>3</option>
+</select>
+```
+
+The rendered HTML shows that the option with a value of 2 has been set as selected,despite the fact that the value attributes on the option tag helper have not been explicitly set:
+
+```html
+<select data-val="true" data-val-required="The Number field is required." id="Number" name="Number">
+    <option value="">Pick one</option>
+    <option>1</option>
+    <option selected="selected">2</option>
+    <option>3</option>
+</select>
+```
+
+##### The Partial Tag Helper
+
+The Partial tag helper is designed to replace the Html.Partial and Html.RenderPartial methods as the recommended mechanism for including partial pages in a Razor content page.
+
+|Attribute|Description|
+|----|----|
+|name|The name of the partial file|
+|model|The model to be passed in to the partial view|
+|for|An expression to be evaluated against the current page model.Cannot be used in conjunction with the model attribute|
+|view-data|A ViewData dictionary to be passed to the partial view|
+
+##### Notes
+
+The partial tag helper will always load the partial content asynchronously.
+
+The name attribute will search all registered partial locations for a file with the supplied name (without the extension).The following example will search for _MyPartial.cshtml in Pages,Pages/Shared and Views/Shared by default:
+
+`<partial name="_MyPartial" ... />`
+
+You can provide a partial path,which will be appended to the search locations:
+
+`<partial name="Folder1/_MyPartial" ... />`
+
+Now the framework will search for the following:
+
+- Pages/Folder1/_MyPartial.cshtml
+- Pages/Shared/Folder1/_MyPartial.cshtml
+- Views/Shared/Folder1/_MyPartial.cshtml
+
+The model attribute and the for attribute both provide a means to pass data to the Partial.You can use one or the other but not both.The examples that follow illustrating the difference both assume that the current PageModel has a Contacts property:
+
+`<partial name="_MyPartial" model="Model.Contacts" />`
+
+`<partial name="_MyPartial" for="@Model.Contacts" />`
+
+or
+
+`<partial name="_MyPartial" for="Contacts" />`
+
+The last two examples are equivalent.The @Model part of the expression is inferred in the second approach.
+
+
+##### The Script Tag Helper
+
+The role of the script tag helper is to generate links dynamically to script files and fallbacks in the event that the primary file is not available,such as if the primary file is located on a remote Content Delivery Network (CDN) which is unavailable for any reason.
+
+|Attribute|Description|
+|---|---|
+|src-include|A comma separated list of globbed file patterns of script files to load.The glob patterns are assessed relative to the application's 'webroot' setting.|
+|src-exclude|A comma separated list of globbed file patterns of script files to exclude from loading.The glob patterns are assessed relative to the application's 'webroot' setting.Must be used in conjunction with src-include|
+|fallback-src|The URL of a script file to fallback to in the case the primary one fails.|
+|fallback-src-include|A comma separated list of globbed file patterns of script files to fallback to in the case the primary one fails.The glob patterns are assessed relative to the application's 'webroot' setting.|
+|fallback-src-exclude|A comma separated list of globbed file patterns of script files to exclude from the fallback list,in the case the primary one fails.The glob patterns are assessed relative to the application's 'webroot' setting.Must be used in conjunction with fallback-src-include.|
+|fallback-test|A Javascript expression to use for the fallback test.Should resolve to true if the primary script loads successfully.|
+|append-version|Boolean value indicating if a file version token should be appended to the src urls.|
+
+##### Notes
+
+You are only likely to use this helper if you use a CDN version of a script file and your site will be unusable in the event that it is not available.The test expression that you specify should resolve to true if the CDN version of the script is available.The helper will render the expression with.
+
+The default Razor Pages template illustrates its usage:
+
+```html
+<script src="https://ajax.aspnetcdn.com/ajax/bootstrap/3.3.7/bootstrap.min.js"
+        asp-fallback-src="~/lib/bootstrap/dist/js/bootstrap.min.js"
+        asp-fallback-test="window.jQuery && window.jQuery.fn && window.jQuery.fn.modal"
+        crossorigin="anonymous"
+        integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa">
+</script>
+```
+
+The preferred version of bootstrap.min.js is hosted on the Microsoft CDN,and the fallback is stored locally.The tag helper includes the test expression in its output:
+
+```html
+<script src="https://ajax.aspnetcdn.com/ajax/bootstrap/3.3.7/bootstrap.min.js"
+ crossorigin="anonymous" 
+integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa">
+</script>
+<script>
+    (window.jQuery && window.jQuery.fn && window.jQuery.fn.modal||document.write("\u003Cscript src=\u0022\/lib\/bootstrap\/dist\/js\/bootstrap.min.js\u0022 crossorigin=\u0022anonymous\u0022 integrity=\u0022sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa\u0022\u003E\u003C\/script\u003E"));
+</script>
+```
+
+The test expression is incorporated into an OR statement that results in a script tag for the local version being rendered if the test expression (which in this case is looking for the presence of jQuery and specifically the Bootstrap modal function) resolves to false.
+
+##### The Select Tag Helper
+
+The role of the select tag helper is to render an HTML select element populated with options generated from a collection of SelectListItem objects,enumeration and/or options set via the option tag helper.
+
+|Attribute|Description|
+|---|----|
+|for|The property on the PageModel that represents the selected element(s)|
+|items|A collection of SelectListItem objects,a SelectList object or an enumeration that provide the options for the select list.|
+
+##### Notes 
+
+##### General
+
+The for attribute value is a property on the PageModel.The select tag helper uses the name of the property to generate values for the name and id attributes on the rendered select element.The selected value(s) will be bound to the specified model's property if the property is model bound.If the property is a collection,support for multiple selections will be enabled by the inclusion of the multiple attribute in the rendered element.
+
+##### Options 
+
+The items attribute value is collection of SelectListItem or a SelectList that represent the options that appear in the select list,or it can be an expression that returns a collection of SelectListItem or a SelectList.The following example shows a list of numbers being created and added to ViewData in the OnGet() handler and then being bound to the items attribute:
+
+```csharp
+public void OnGet()
+{
+    ViewData["Number"] = Enumerable.Range(1,5).Select(n=>new SelectListItem{
+        Value = n.ToString(),
+        Text = n.ToString()
+    }).ToList();
+}
+```
+
+```html
+<select asp-for="Number" asp-items="@((List<SelectListItem>)ViewData["Numbers"])">
+    <option value="">Pick one</option>
+</select>
+```
+
+The ViewData approach requires casting to the correct type,so the advice is to add the collection as a property of the PageModel:
+
+```csharp
+public List<SelectListItem> Numbers => Enumerable.Range(1,5).Select(n=>
+                    new SelectListItem{
+                        Value = n.ToString(),
+                        Text = n.ToString()
+                    }).ToList();
+```
+
+```html
+<select asp-for="Number" asp-items="Model.Numbers">
+    <option value="">Pick one</option>
+</select>
+```
+
+Here's another approach that shows how to use a generic List as a source for a SelectList:
+
+```csharp
+[BindProperty]
+public int Person Person{get;set;}
+public List<Person> People {get;set;}
+
+public void OnGet()
+{
+    People = new List<Person>{
+        new Person {Id=1,Name="Mike"},
+        new Person {Id-2,Name="Pete"},
+        new Person {Id=3,Name="Katy"},
+        new Person {Id=4,Name="Carl"}
+    };
+}
+```
+
+```html
+<select asp-for="Person" asp-items="@(new SelectList(Model.People,"Id","Name"))">
+    <option value="">Pick one</option>
+</select>
+```
+
+##### Setting Selected Item
+
+The SelectListItem type has a boolean property named Selected.This can be used to set the selected item unless you specify a property for the asp-for attribute.If you do that,the value of the property will be set as selected,if it has one that matches the value of a SelectListItem:
+
+```csharp
+[BindProperty]
+public int Person {get;set;}=3;
+public List<SelectListItem> People {get;set;}
+
+public void OnGet()
+{
+    People = new List<SelectListItem>{
+        new SelectListItem { Value="1",Text="Mike"},
+        new SelectListItem { Value="2",Text="Pete"},
+        new SelectListItem { Value="3",Text="katy"},
+        new SelectListItem { Value="4",Text="Carl"}
+    };
+}
+```
+
+```html
+<select asp-for="Person" asp-items="Model.People">
+    <option value="">Pick one</option>
+</select>
+```
+
+The resulting HTML:
+
+```HTML
+<select data-val="true" data-val-required="The Person field is required." id="Person" name="Person">
+    <option value="">Pick one</option>
+    <option value="1">Mike</option>
+    <option value="2">Pete</option>
+    <option selected="selected" value="3">Katy</option>
+    <option value="4">Carl</option>
+</select>
+```
+
+##### Enumerations
+
+The Html.GetEnumSelectList method makes it easy to use an enumeration as the data source for a select list.This next example shows how to use the System.DayOfWeek enumeration to present the days of the week as option values,and assumes that the PageModel has a property of the correct type called DayOfWeek:
+
+```csharp
+public DayOfWeek DayOfWeek{get;set;}
+```
+
+```html
+<select asp-for="DayOfWeek" asp-items="Html.GetEnumSelectList<DayOfWeek>()">
+    <option value="">Pick one</option>
+</select>
+```
+
+The resulting HTML looks like this:
+
+```html
+<select data-val="true" data-val-required="The DayOfWeek field is required." id="DayOfWeek" name="DayOfWeek">
+    <option value="">Pick one</option>
+    <option selected="selected" value="0">Sunday</option>
+    <option value="1">Monday</option>
+    <option value="2">Tuesday</option>
+    <option value="3">Wednesday</option>
+    <option value="4">Thursday</option>
+    <option value="5">Friday</option>
+    <option value="6">Saturday</option>
+</select>
+```
+
+In this example,the first option is selected.This is because it matches the default value of DayOfWeek.If you do not want the default value to be pre-selected,you can make your model property nullable:
+
+```csharp
+public DayOfWeek? DayOfWeek {get;set;}
+```
+
+##### SelectList
+
+You can create a SelectList from any collection but you need to specify the DataTextField and DataValueField values for the select tag helper to bind the options correctly:
+
+```csharp
+public SelectList Options { get; set; }
+public void OnGet()
+{
+    Options = new SelectList(context.Authors, "AuthorId", "Name");
+}
+```
+
+Here's version that takes a Dictionary:
+
+```csharp
+public SelectList Options { get; set; }
+public void OnGet()
+{
+    var dictionary = context.Authors.ToDictionary<int, string>(k => k.AuthorId, v => v.Name);
+    Options = new SelectList(dictionary, "Key", "Value");
+}
+```
+
+##### OptGroups
+
+The SelectListGroup class represents an HTML optgroup element.If you want to use optgroups,you can create SelectListGroup instances as required,and then apply them to individual SelectListItems:
+
+```csharp
+public int Employee { get; set; }
+public List<SelectListItem> Staff { get; set; }
+public void OnGet()
+{
+    var Sales = new SelectListGroup { Name = "Sales" };
+    var Admin = new SelectListGroup { Name = "Admin" };
+    var IT = new SelectListGroup { Name = "IT" }; 
+    Staff = new List<SelectListItem>
+    {
+        new SelectListItem{ Value = "1", Text = "Mike", Group = IT},
+        new SelectListItem{ Value = "2", Text = "Pete", Group = Sales},
+        new SelectListItem{ Value = "3", Text = "Katy", Group = Admin},
+        new SelectListItem{ Value = "4", Text = "Carl", Group = Sales}
+    };
+}
+```
+
+The following shows the rendered HTML (indented for clarity):
+
+```html
+<select data-val="true" data-val-required="The Employee field is required." id="Employee" name="Employee">
+    <option value="">Pick one</option>
+    <optgroup label="IT">
+        <option value="1">Mike</option>
+    </optgroup>
+    <optgroup label="Sales">
+        <option value="2">Pete</option>
+        <option value="4">Carl</option>
+    </optgroup>
+    <optgroup label="Admin">
+        <option value="3">Katy</option>
+    </optgroup>
+</select>
+```
+
+If you are using a SelectList,you can specify the property to be used for grouping in the constructor:
+
+```csharp
+public SelectList Staff { get; set; }
+[BindProperty]
+public int SelectedStaffId { get; set; }
+public void OnGet()
+{
+    var staff = new List<Person>{
+        new Person{ Id = 1, Name = "Mike", Department = "IT"},
+        new Person{ Id = 2, Name = "Pete", Department = "Sales"},
+        new Person{ Id = 3, Name = "Katy", Department = "Admin"},
+        new Person{ Id = 4, Name = "Carl", Department = "Sales"}
+    };
+    Staff = new SelectList(staff, nameof(Person.Id), nameof(Person.Name), null, nameof(Person.Department));
+}
+```
+
+`<select asp-for="SelectedStaffId" asp-items="Model.Staff"></select>`
+
+In the example above,the nameof operator is used to minimise the chances of typos creeping into the code.If the grouping property is a property of a child object,you will need to fall back to using a string to reference it.In the previous example Department is a string property of the Person class.In the next example,it is a class with a Name property:
+
+```csharp
+var staff = new List<Person>{
+    new Person{ Id = 1, Name = "Mike", Department = new Department { Name = "IT" } },
+    new Person{ Id = 2, Name = "Pete", Department = new Department { Name = "Sales"} },
+    new Person{ Id = 3, Name = "Katy", Department = new Department { Name = "Admin"} },
+    new Person{ Id = 4, Name = "Carl", Department = new Department { Name = "Sales"} }
+};
+```
+
+Now you need to use a navigational string to identify the grouping property:
+
+```csharp
+Staff = new SelectList(staff, nameof(Person.Id), nameof(Person.Name), null, "Department.Name");
+```
+
+##### The Textarea Tag Helper
+
+The role of the textarea tag helper is to render and HTML textarea element for capturing multiline text.
+
+The textarea tag helper has one attribute:
+
+|Attribute|Description|
+|for|An expression to be evaluated against the current page model|
+
+##### Notes 
+
+The textarea tag helper renders id and name attributes based on the name of the model property passed to the asp-for attribute.It also renders any associated data attributes required for property validation.
+
+The MainText property below has a maximum length of 300 applied to it:
+
+```csharp
+[BindProperty,MaxLength(300)]
+public string MainText{get;set;}
+```
+
+This is passed to the value of the asp-for attribute of the tag helper:
+
+```html
+<textarea asp-for="MainText"></textarea>
+```
+
+The resulting HTML includes the validation attributes for unobtrusive validation as well as the appropriate name attribute value for model binding:
+
+```html
+<textarea data-val="true" data-val-maxlength="The field MainText must be a string or array type with a maximum length of &#x27;300&#x27;." data-val-maxlength-max="300" id="MainText" name="MainText">
+```
+
+##### The Validation Tag Helper
+
+The validation tag helper targets the HTML span element,and is used to render property-specific validation error messages.
+
+|Attribute|Description|
+|---|---|
+|validation-for|An expression to be evaluated against the current PageModel,ususally a PageModel property name|
+
+##### Notes
+
+Validation tag helpers display both client-side and server-side validation error messages.They apply a CSS class named field-validation-valid to the span,which is changed to field-validation-error in the event that the form value is invalid.These styles are added to any others that you specify via the class attribute.
+
+`<span asp-validation-for="FirstName" class="myclass"></span>`
+
+renders as 
+
+```html
+<span class="myclass field-validation-valid" data-valmsg-for="FirstName" data-valmsg-replace="true"></span>
+```
+
+It is customary to position the tag helper as close to the control that it refers to so that it is easier for users to relate the error message to the relevant form value.
+
+##### The Validation Summary Tag Helper
+
+The Validation summary tag helper targets the HTML div element,and is used to render a summary of form validation error messages.
+
+|Attribute|Description|
+|---|---|
+|validation-summary|A ValidationSummary enumeration that specifies what validation errors to display.|
+
+Possible ValidationSummary enumeration values are:
+
+|Enum|Description|
+|None|providing no validation summary (the default)|
+|ModelOnly|summarising only model validation errors|
+|All|summarising model and property validation errors|
+
+For more information on the various types of error (model or property),see the Validation topic
+
+##### Notes 
+
+The validation summary tag helper is normally placed at the top of the form.Individual items that form the summary are displayed in an unordered list:
+
+```html
+<div class="validation-summary-errors" data-valmsg-summary="true">
+    <ul>
+        <li>The FirstName field is required.</li>
+        <li>The LastName field is required.</li>
+        <li>The DateOfBirth field is required.</li>
+    </ul>
+</div>
+```
+
+You can include additional content to appear before the summary list by adding it to the content of the validation summary tag helper:
+
+
+```html
+<div asp-validation-summary="All">
+    <span>Please correct the following errors</span>
+</div>
+```
+
+The list of validation error messages is appended to any existing content.The additional content will be visible by default.If you don't want users to see the content unless the page is invalid,change the validation-summary-valid CSS class (which is injected into the div by the tag helper when the page is valid) so that it hides the div or its content:
+
+```css
+.validation-summary-valid {display:none;}
+```
+
+or,suitable for the example above where the additional content is in a span:
+
+```css
+.validation-summary-valid span{display:none;}
+```
+
+If you specify None as the value for the validation-summary attribute,an empty div is rendered.None results in the tag helper doing nothing.
 
 #### View Components
+
+##### View Components in Razor Pages
+
+View Components perform a similar role to Tag Helpers and Partial Pages.They generate HTML and are designed to represent reusable snippets of UI that can help break up and simplify complex layouts,or that can be used in multiple pages.View components are recommended instead of partial pages or tag helpers whenever any form of logic is required to obtain data for inclusion in the resulting HTML  snippet,specifically calls to an external resource such as a file,database or web service.View components also lend themselves to unit testing.
+
+View components are particularly useful for data-driven features in a layout page where there is no related page model or controller class.Examples of use cases for view components include data-driven menus,tag clouds and shopping basket widgets.
+
+##### Elements of a view component
+
+View components consist of a class file and a .cshtml view file.The class file contains the logic for generating the model.It can be thought of as mini-controller,just as the Razor PageModel file is considered to be a controller.The view file contains the template used to generate the HTML to be plugged in to the page that hosts the view component.
+
+The class file must conform to the following rules:
+
+- It must derive from the ViewComponent class 
+- It Must have "ViewComponent" as a suffix to the class name or it must be decorated with the [ViewComponent] attribute (or derive from a class that's decorated with the [viewComponent] attribute)
+- It must implement a method named Invoke with a return type of IViewComponentResult (or InvokeAsync returning Task<IViewComponentResult> if you need to call asynchronous methods).Typically,this is satisfied by a return View(...) statement in the method.
+
+By default,the view file is named default.cshtml.You can specify an alternative name for the view file by passing it to the return View(...) statement.The view file's placement within the application's file structure is important,because the framework searches pre-defined locations for it:
+
+`/Pages/Shared/Components/<component name>/Default.cshtml`
+`/Views/Shared/Components/<component name>/Default.cshtml`
+
+The framework will also search by walking up the directory tree from the location of the calling page unitl it reaches the root Pages folder.This is the same search pattern as for partials.
+
+The component name is the name of the view component class without the ViewComponent suffix (if it is applied).For a Razor Pages only site,the recommended location for view component views is the /Pages/Shared/Components/ directory.This is especially the case if you are using Areas,which you will do if you use the Identity UI.The path that begins with /Views should only really be used if you are creating a hybrid Razor Pages /MVC applicaion.
+
+##### Walkthrough
+
+The following walkthrough will result in two example view components being created.One will call into an external web service to obtain a list of people,and will display their names.The other will take a parameter representing the ID of one person whose details will be obtained from an external web service and then displayed in a widget.
+
+The service APIs used in this example are hosted at JSONPlaceholder which provides free JSON APIs for development and testing purposes.
+
+The view components will not be responsible for making calls to the external APIs.This task will be performed in a separate service class which will be injected into the view components via the built-in Dependency Injection framework.
+
+1. Create a new Razor Pages site named RazorPages using Visual Studio or the command line.
+
+2. Add a new C# class file named Domain.cs to the root folder of the application and replace any existing content with the following:
+
+```csharp
+namespace RazorPages
+{
+    public class User
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string UserName { get; set; }
+        public string Email { get; set; }
+        public string Phone { get; set; }
+        public string Website { get; set; }
+        public Address Address { get; set; }
+        public Company Company { get; set; }
+    }
+    public class Address
+    {
+        public string Street { get; set; }
+        public string Suite { get; set; }
+        public string City { get; set; }
+        public string Zipcode { get; set; }
+        public Geo Geo { get; set; }
+    }
+    public class Company
+    {
+        public string Name { get; set; }
+        public string Catchphrase { get; set; }
+        public string Bs { get; set; }
+    }
+    public class Geo
+    {
+        public float Lat { get; set;}
+        public float Lng { get; set; }
+    }
+}
+```
+
+These classes map to the structure of the objects represented by the JSON provided by the API being used for this example.
+
+3. Add a new folder named Services to the root folder
+
+![services](assets/100.png)
+
+4. Add a new C# class file named IUserService.cs to the Services folder.Replace any existing content with the following code:
+
+```csharp
+using System.Collections.Generic;
+using System.Threading.Tasks;
+namespace RazorPages.Services
+{
+    public interface IUserService
+    {
+        Task<List<User>> GetUsersAsync();
+        Task<User> GetUserAsync(int id);
+    }
+}
+```
+
+This is the interface that specifies the operations offered by the service
+
+5. Add another new C# class file named UserService.cs to the Services folder and replace any existing content with the following:
+
+```csharp
+using Newtonsoft.Json;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Threading.Tasks;
+namespace RazorPages.Services
+{
+    public class UserService : IUserService
+    {
+        public async Task<List<User>> GetUsersAsync()
+        {
+            using (var client = new HttpClient())
+            {
+                var endPoint = "https://jsonplaceholder.typicode.com/users";
+                var json = await client.GetStringAsync(endPoint);
+                return JsonConvert.DeserializeObject<List<User>>(json);
+            }
+        }
+        public async Task<User> GetUserAsync(int id)
+        {
+            using (var client = new HttpClient())
+            {
+                var endPoint = $"https://jsonplaceholder.typicode.com/users/{id}";
+                var json = await client.GetStringAsync(endPoint);
+                return JsonConvert.DeserializeObject<User>(json);
+            }
+        }
+    }
+}
+```
+
+This class represents an implementation of the IUserService interface.
+
+6. Add a folder named ViewComponents to the root of the application.Then add a new file to that folder,name it UsersViewComponent.cs and replace any existing content with the following:
+
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using RazorPages.Services;
+using System.Threading.Tasks;
+namespace RazorPages.ViewComponents
+{
+    public class UsersViewComponent : ViewComponent
+    {
+        private IUserService _userService;
+        public UsersViewComponent(IUserService userService)
+        {
+            _userService = userService;
+        }
+        public async Task<IViewComponentResult> InvokeAsync()
+        {
+            var users = await _userService.GetUsersAsync();
+            return View(users);
+        }
+    }
+}
+```
+
+This is the code part of the view component.It makes use of the built-in dependency injection system to resolve the implementation of IUserService which is injected into the constructor of the view component class.The InvokeAsync method obtains a List<User> from the service and passes it to the view.
+
+7. Create a folder named Components in the Pages folder and then add another folder named Users to the newly created Components folder.Add a new file name default.cshtml to the Users folder.The resulting folder and file hierarchy should look like this:
+
+![component](assets/101.png)
+
+
+8. Replace the code in default.cshtml with the following:
+
+```html
+@model List<RazorPages.User>
+<h3>Users</h3>
+<ul>
+    @foreach (var user in Model)
+    {
+        <li>@user.Name</li>
+    }
+</ul>
+```
+
+This is the view,and completes the view component.Notice that the view accepts a model of type List<User> via the @model directive,which is type passed to the view from the InvokeAsync method.
+
+9. Open the Startup.cs file and add using RazorPages.Services;to the using directives at the top of the file.Then amend the ConfigureServices method so that the code looks like this:
+
+```csharp
+public void ConfigureServices(IServiceCollection services)
+{
+    services.AddMvc();
+    services.AddTransient<IUserService, UserService>();
+}
+```
+
+This step registers the IUserService with the dependency injection system,and specifies that UserService is the actual implementation to use.
+
+10. Open the Layout.cshtml file and locate the content between the <nav> section and the <environment> tag helper that currently looks like this:
+
+```html
+<div class="container body-content">
+    @RenderBody()
+    <hr />
+    <footer>
+        <p>&copy; 2017 - RazorPages</p>
+    </footer>
+</div>
+```
+
+Change the content as follows:
+
+```html
+<div class="container body-content">
+    <div class="col-md-9">
+        @RenderBody()
+    </div>
+    <div class="col-md-3">
+        @await  Component.InvokeAsync("Users")
+    </div>
+</div>
+<hr />
+<footer class="container">
+    <p>&copy; 2017 - RazorPages</p>
+</footer>
+```
+
+This converts the layout for the site 2 columns,with page content displayed in the left hand column and a Users widget displayed in the right hand column.It uses the Component.InvokeAsync method to render the output of the view component to the page.The string which is passed to the method represents the name of the view component (the class name without the "ViewComponent" suffix).
+
+11. Run the site to ensure that all is working.The list of users should appear on the right hand side of every page:
+
+![test](assets/102.png)
+
+##### Taghelper and passing parameters
+
+The second example will demonstrate the use of a tag helper instead of calling the Component.InvokeAsync method.It will also demonstrate passing parameters to the view component.
+
+1. Add a new C# class file to the ViewComponents folder and name it UserViewComponent.cs.Replace any existing content with the following:
+
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using RazorPages.Services;
+using System.Threading.Tasks;
+namespace RazorPages.ViewComponents
+{
+    public class UserViewComponent : ViewComponent
+    {
+        private IUserService _userService;
+        public UserViewComponent(IUserService userService)
+        {
+            _userService = userService;
+        }
+        public async Task<IViewComponentResult> InvokeAsync(int id)
+        {
+            var user = await _userService.GetUserAsync(id);
+            return View(user);
+        }
+    }
+}
+```
+
+This is the code part of the view component.The only difference between this component and the previous one is that the InvokeAsync method expects a parameter of type int to be passed,which is then passed to the service method.
+
+2. Add a new folder to the /Pages/Components folder named User.Add a Razor file to the folder named default.cshtml.The structure of the Components folder should now look like this:
+
+![user](assets/103.png)
+
+3. Replace any existing content in the new default.cshtml file with the following:
+
+```html
+@model RazorPages.User
+<h3>Featured User</h3>
+<div>
+    <strong>@Model.Name</strong><br />
+    @Model.Website<br />
+    @Model.Company.Name<br />
+</div>
+```
+
+4. Open the ViewImports.cshtml file and add the following line to the existing code:
+
+`@addTagHelper *,RazorPages`
+
+This registers the view component tag.
+
+5. Replace the call to @await Component.InvokeAsync("Users") in the layout file with the following:
+
+`<vc:user id="new Random().Next(1,10)"></vc:user>`
+
+The name of the view component is specified in the tag helper,along with the parameter for the InvokeAsync method.In this case,the Random class is used to return any number from 1-10 each time the component is invoked,resulting in a user being selected randomly each time the page is displayed.
+
+> :information_source:Note that the name of the component and its parameters must be specified in kebab case in the tag helper.Kebab case takes upper case characters and replaces them with their lowercase version,prefixing those that appear within the word with a hyphen.So a MainNavigation view component becomes main-navigation in the tag helper.A productId parameter name becomes product-id.
+
+6. Run the application to test that the component is working,and refresh a few times to see different user's details being displayed:
+
+![refresh](assets/104.png)
+
+If you prefer to use the Component.InvokeAsync method,parameters are passed as a second argument:
+
+`@await Component.InvokeAsync("User",new Random().Next(1,10))`
+
+##### Optional Parameters
+
+From .NET 6,the view component tag helper supports optional parameters.Consequently,you no longer need to specify a value for an optional parameter when adding a view component to a page.For example,suppose that our UserViewComponent took an optional boolean parameter to indicate whether full details of the user are required for display:
+
+```csharp
+public async Task<IViewComponentResult> InvokeAsync(int id, bool showDetails = false)
+{
+    var user = showDetails ? 
+        await _userService.GetUserWithDetailsAsync(id) :
+        await _userService.GetUserAsync(id);
+    return View(user);
+}
+```
+
+Prior to .NET 6,you needed to specify a value for the show-details parameter despite it having a default value.Now you don't:
+
+`<vc:user id="new Random().Next(1,10)" />`
+
+
+
 #### Routing and URLs
 
 ##### Razor Pages Routing
@@ -10732,10 +11711,3 @@ The full list of properties is as follows:
 |Path|string|The relative path that the cookie should be accessible to.If not specified,the cookie is available to all pages in the domain(s).Subdirectories are also included.For example,/account will match/accout,/account/client etc.|
 |SameSite|SameSiteMode enum|Possible values are Lax (default),None,Strict.The SameSite option is intended to help in the prevention of CSRF or cookie hijacking attacks,but it is not supported by all browsers.It therefore should not be relied on.|
 |SecurePolicy|CookieSecurePolicy enum|Specifies the security policy of the cookie.Possible values are Always (Secure is always marked true), None (Secure is not marked true) and SameAsRequest (The default: the cookie will be sent using the protocol of the request).|
-
-
-
-
-
-
-
